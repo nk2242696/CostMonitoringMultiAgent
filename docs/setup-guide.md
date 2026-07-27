@@ -115,7 +115,7 @@ Open <http://localhost:8000/health>. A healthy installation reports the API stat
 
 Open <http://localhost:8000/docs> to browse and test the REST API.
 
-![Interactive FastAPI documentation](images/api-docs.png)
+<img src="images/api-docs.png" alt="Interactive FastAPI documentation" width="900">
 
 ## 8. Discover subscriptions and collect costs
 
@@ -153,7 +153,7 @@ With `LLM_PROVIDER=disabled`, the command generates deterministic recommendation
 
 Open <http://localhost:3000>. Sign in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from your local `.env`.
 
-![Grafana login](images/grafana-login.png)
+<img src="images/grafana-login.png" alt="Grafana login" width="900">
 
 Open **Dashboards** and select one of the provisioned dashboards:
 
@@ -162,9 +162,9 @@ Open **Dashboards** and select one of the provisioned dashboards:
 - Architecture Reviews
 - Chargeback
 
-On dashboards that support a consolidated view, select **All** in the subscription filter to view all collected subscriptions.
+Select a subscription for a focused view. On dashboards that support a consolidated view, select **All** to view all collected subscriptions.
 
-![AI Recommendations dashboard with all subscriptions selected](images/grafana-ai-recommendations.png)
+<img src="images/grafana-ai-recommendations.png" alt="AI Recommendations dashboard filtered to one subscription" width="900">
 
 Data appears only after a successful collection or when sample data has been loaded intentionally.
 
@@ -172,7 +172,7 @@ Data appears only after a successful collection or when sample data has been loa
 
 Open <http://localhost:9090/targets>. Both `cost-api` and `prometheus` should show `UP`.
 
-![Prometheus target health](images/prometheus-targets.png)
+<img src="images/prometheus-targets.png" alt="Prometheus target health" width="900">
 
 ## 12. Day-to-day commands
 

@@ -30,7 +30,7 @@
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"Resources to Review\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring}));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"Resources to Review\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -45,7 +45,7 @@
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"High Priority\" FROM ai_recommendations WHERE status = 'pending' AND priority IN ('critical', 'high') AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring}));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"High Priority\" FROM ai_recommendations WHERE status = 'pending' AND priority IN ('critical', 'high') AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -60,7 +60,7 @@
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(ROUND(SUM(current_cost)::numeric, 0), 0) as \"Total Spend Under Review\" FROM ai_recommendations WHERE status = 'pending' AND current_cost > 0 AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring}));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(ROUND(SUM(current_cost)::numeric, 0), 0) as \"Total Spend Under Review\" FROM ai_recommendations WHERE status = 'pending' AND current_cost > 0 AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -75,7 +75,7 @@
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(DISTINCT service_name) as \"Services Analyzed\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring}));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(DISTINCT service_name) as \"Services Analyzed\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -100,7 +100,7 @@
       "id": 5,
       "options": { "barRadius": 0.1, "barWidth": 0.65, "fullHighlight": true, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "hidden", "placement": "right", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0 },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT service_name as \"Service\", ROUND(SUM(current_cost)::numeric, 0) as \"Current Monthly Cost\" FROM ai_recommendations WHERE status = 'pending' AND current_cost > 0 AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring})) GROUP BY service_name ORDER BY SUM(current_cost) DESC LIMIT 15;" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT service_name as \"Service\", ROUND(SUM(current_cost)::numeric, 0) as \"Current Monthly Cost\" FROM ai_recommendations WHERE status = 'pending' AND current_cost > 0 AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring})) GROUP BY service_name ORDER BY SUM(current_cost) DESC LIMIT 15;" }],
       "title": "Current Monthly Spend by Service (under review)",
       "type": "barchart"
     },
@@ -121,7 +121,7 @@
       "id": 10,
       "options": { "displayLabels": ["name", "percent"], "legend": { "displayMode": "hidden", "placement": "right", "showLegend": false, "values": [] }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT service_name as metric, ROUND(SUM(current_cost)::numeric, 0) as value FROM ai_recommendations WHERE status = 'pending' AND current_cost > 0 AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring})) GROUP BY service_name ORDER BY SUM(current_cost) DESC LIMIT 8;" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT service_name as metric, ROUND(SUM(current_cost)::numeric, 0) as value FROM ai_recommendations WHERE status = 'pending' AND current_cost > 0 AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring})) GROUP BY service_name ORDER BY SUM(current_cost) DESC LIMIT 8;" }],
       "title": "Cost Distribution by Service",
       "type": "piechart"
     },
@@ -215,7 +215,7 @@
         "sortBy": [{ "desc": true, "displayName": "Monthly Cost" }]
       },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT \n  recommendation_id as \"Diagnose\",\n  priority as \"Priority\",\n  service_name as \"Service\",\n  title as \"Resource\",\n  resource_type as \"Type\",\n  ROUND(current_cost::numeric, 0) as \"Monthly Cost\",\n  implementation_effort as \"Effort\",\n  status as \"Status\"\nFROM ai_recommendations\nWHERE status = 'pending'\n  AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring}))\nORDER BY current_cost DESC NULLS LAST;" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT \n  recommendation_id as \"Diagnose\",\n  priority as \"Priority\",\n  service_name as \"Service\",\n  title as \"Resource\",\n  resource_type as \"Type\",\n  ROUND(current_cost::numeric, 0) as \"Monthly Cost\",\n  implementation_effort as \"Effort\",\n  status as \"Status\"\nFROM ai_recommendations\nWHERE status = 'pending'\n  AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring}))\nORDER BY current_cost DESC NULLS LAST;" }],
       "title": "All Resources — click ▶ Diagnose to get utilization score from Azure Monitor",
       "type": "table"
     },
@@ -239,7 +239,7 @@
       "id": 8,
       "options": { "barRadius": 0.1, "barWidth": 0.7, "fullHighlight": false, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "hidden", "placement": "right", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0 },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT category as \"Category\", COUNT(*) as \"Count\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring})) GROUP BY category ORDER BY COUNT(*) DESC;" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT category as \"Category\", COUNT(*) as \"Count\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring})) GROUP BY category ORDER BY COUNT(*) DESC;" }],
       "title": "Recommendations by Category",
       "type": "barchart"
     },
@@ -256,7 +256,7 @@
       "id": 9,
       "options": { "barRadius": 0.1, "barWidth": 0.7, "fullHighlight": false, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "hidden", "placement": "right", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0 },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT priority as \"Priority\", COUNT(*) as \"Count\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '$__all') OR subscription_id IN (${subscription:sqlstring})) GROUP BY priority ORDER BY CASE priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 END;" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT priority as \"Priority\", COUNT(*) as \"Count\" FROM ai_recommendations WHERE status = 'pending' AND ('${subscription:raw}' IN ('all', '__all__') OR subscription_id IN (${subscription:sqlstring})) GROUP BY priority ORDER BY CASE priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 END;" }],
       "title": "Recommendations by Priority",
       "type": "barchart"
     },
@@ -285,8 +285,8 @@
   "templating": {
     "list": [
       {
-        "allValue": "$__all",
-        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "allValue": "__all__",
+        "current": { "selected": true, "text": "All", "value": "__all__" },
         "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
         "definition": "SELECT DISTINCT subscription_id FROM cost_records WHERE subscription_id IS NOT NULL ORDER BY subscription_id",
         "includeAll": true,

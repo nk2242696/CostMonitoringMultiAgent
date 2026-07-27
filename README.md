@@ -93,23 +93,23 @@ Published ports can be changed in `.env`.
 
 ### Interactive API documentation
 
-![FastAPI Swagger UI showing the platform endpoints](docs/images/api-docs.png)
+<img src="docs/images/api-docs.png" alt="FastAPI Swagger UI showing the platform endpoints" width="900">
 
 ### Grafana sign-in
 
 Use `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from your local `.env`.
 
-![Grafana sign-in page](docs/images/grafana-login.png)
+<img src="docs/images/grafana-login.png" alt="Grafana sign-in page" width="900">
 
 ### AI recommendations dashboard
 
-The subscription filter can remain set to **All** for a consolidated view.
+Select a specific subscription for a focused view, or **All** for a consolidated view.
 
-![Grafana AI Recommendations dashboard with the subscription filter set to All](docs/images/grafana-ai-recommendations.png)
+<img src="docs/images/grafana-ai-recommendations.png" alt="Grafana AI Recommendations dashboard filtered to one subscription" width="900">
 
 ### Monitoring verification
 
-![Prometheus targets showing the API and Prometheus as healthy](docs/images/prometheus-targets.png)
+<img src="docs/images/prometheus-targets.png" alt="Prometheus targets showing the API and Prometheus as healthy" width="900">
 
 ## AI providers
 

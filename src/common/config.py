@@ -118,6 +118,21 @@ class FeaturesConfig(BaseSettings):
     enable_savings_reporting: bool = True
 
 
+class AgentRuntimeConfig(BaseSettings):
+    """Bounded, read-only multi-agent runtime configuration."""
+
+    agent_runtime_enabled: bool = False
+    agent_chat_model: Optional[str] = None
+    agent_background_model: Optional[str] = None
+    agent_node_timeout_seconds: int = Field(default=60, ge=1, le=600)
+    agent_workflow_timeout_seconds: int = Field(default=180, ge=1, le=3600)
+    agent_max_refinement_rounds: int = Field(default=2, ge=0, le=5)
+    agent_max_tool_calls: int = Field(default=8, ge=1, le=50)
+    agent_max_model_calls: int = Field(default=12, ge=1, le=50)
+    agent_checkpoint_retention_days: int = Field(default=30, ge=1, le=365)
+    agent_background_schedule: str = "0 0 * * 0"
+
+
 class OrganizationConfig(BaseModel):
     """Non-secret organization context supplied to analysis workflows."""
 
@@ -168,6 +183,7 @@ class Config:
         self.logging = LoggingConfig(**self._config_data.get("logging", {}))
         self.security = SecurityConfig(**self._config_data.get("security", {}))
         self.features = FeaturesConfig(**self._config_data.get("features", {}))
+        self.agents = AgentRuntimeConfig()
         self.workspace = self._load_workspace_config()
 
     def _load_config(self) -> Dict[str, Any]:

@@ -409,3 +409,98 @@ class ArchitectureReview(Base):
     estimated_savings = Column(Numeric(precision=12, scale=2))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Durable multi-agent runs and audit records
+# ---------------------------------------------------------------------------
+
+class AgentRun(Base):
+    """Actor-scoped execution record independent of LangGraph internals."""
+
+    __tablename__ = "agent_runs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(String(100), unique=True, nullable=False, index=True)
+    thread_id = Column(String(100), nullable=False, index=True)
+    workflow_kind = Column(String(50), nullable=False)
+    actor_id = Column(String(255), nullable=False, index=True)
+    request_id = Column(String(100), index=True)
+    scope = Column(JSON, default=dict)
+    status = Column(String(50), nullable=False, default="queued", index=True)
+    model = Column(String(255))
+    personas = Column(JSON, default=list)
+    usage = Column(JSON, default=dict)
+    latency_ms = Column(Integer)
+    error_category = Column(String(100))
+    safe_error = Column(Text)
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    events = relationship("AgentEvent", back_populates="run", cascade="all, delete-orphan")
+    messages = relationship("AgentMessageRecord", back_populates="run", cascade="all, delete-orphan")
+    artifacts = relationship("AgentArtifact", back_populates="run", cascade="all, delete-orphan")
+
+    __table_args__ = (Index("ix_agent_runs_actor_created", "actor_id", "created_at"),)
+
+
+class AgentEvent(Base):
+    """Append-only sanitized audit event for node, model, and tool activity."""
+
+    __tablename__ = "agent_events"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    event_id = Column(String(100), unique=True, nullable=False, index=True)
+    agent_run_id = Column(BigInteger, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False)
+    node_name = Column(String(100))
+    persona = Column(String(100))
+    prompt_id = Column(String(100))
+    prompt_version = Column(String(30))
+    status = Column(String(50), nullable=False)
+    duration_ms = Column(Integer)
+    details = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    run = relationship("AgentRun", back_populates="events")
+    __table_args__ = (Index("ix_agent_events_run_type_created", "agent_run_id", "event_type", "created_at"),)
+
+
+class AgentMessageRecord(Base):
+    """Sanitized conversational memory linked to a run and thread."""
+
+    __tablename__ = "agent_messages"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    message_id = Column(String(100), unique=True, nullable=False, index=True)
+    agent_run_id = Column(BigInteger, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    thread_id = Column(String(100), nullable=False, index=True)
+    actor_id = Column(String(255), nullable=False, index=True)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    message_metadata = Column("metadata", JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    run = relationship("AgentRun", back_populates="messages")
+    __table_args__ = (Index("ix_agent_messages_thread_created", "thread_id", "created_at"),)
+
+
+class AgentArtifact(Base):
+    """Evidence, findings, governance verdicts, and pending proposals."""
+
+    __tablename__ = "agent_artifacts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    artifact_id = Column(String(100), unique=True, nullable=False, index=True)
+    agent_run_id = Column(BigInteger, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    artifact_type = Column(String(50), nullable=False, index=True)
+    persona = Column(String(100))
+    payload = Column(JSON, nullable=False, default=dict)
+    citations = Column(JSON, default=list)
+    requires_human_approval = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    run = relationship("AgentRun", back_populates="artifacts")
+    __table_args__ = (Index("ix_agent_artifacts_run_type", "agent_run_id", "artifact_type"),)

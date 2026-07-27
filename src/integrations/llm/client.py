@@ -139,3 +139,41 @@ def create_sync_chat_client(
         client = OpenAI(**common, base_url=resolved.base_url)
 
     return client, resolved.model
+
+
+def create_langchain_chat_model(
+    settings: LLMSettings | None = None,
+    *,
+    model_override: str | None = None,
+) -> Any:
+    """Create the LangChain chat model used by the LangGraph runtime.
+
+    Provider credentials remain sourced exclusively through ``LLMSettings``.
+    The import is local so the deterministic runtime can still start when the
+    optional agent feature is disabled during rollout.
+    """
+    from langchain_openai import AzureChatOpenAI, ChatOpenAI
+
+    resolved = settings or LLMSettings.from_env()
+    resolved.validate()
+    if resolved.provider == "disabled":
+        raise LLMConfigurationError("agent_runtime_unavailable: LLM provider is disabled")
+
+    model = model_override or resolved.model
+    common = {
+        "api_key": resolved.api_key,
+        "timeout": resolved.timeout_seconds,
+        "max_retries": resolved.max_retries,
+    }
+    if resolved.provider == "azure_openai":
+        return AzureChatOpenAI(
+            **common,
+            azure_deployment=model,
+            azure_endpoint=resolved.base_url,
+            api_version=resolved.api_version,
+        )
+    return ChatOpenAI(
+        **common,
+        model=model,
+        base_url=resolved.base_url,
+    )

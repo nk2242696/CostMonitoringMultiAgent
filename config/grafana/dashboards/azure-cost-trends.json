@@ -694,7 +694,7 @@
         "footer": {
           "countRows": false,
           "enablePagination": true,
-          "fields": "",
+          "fields": [],
           "reducer": [
             "sum"
           ],
@@ -874,7 +874,7 @@
         "cellHeight": "sm",
         "footer": {
           "countRows": false,
-          "fields": "",
+          "fields": [],
           "reducer": [
             "sum"
           ],
@@ -920,6 +920,11 @@
                   "color": "red",
                   "index": 0,
                   "text": "Over Budget"
+                },
+                "-1": {
+                  "color": "gray",
+                  "index": 2,
+                  "text": "Not Configured"
                 },
                 "1": {
                   "color": "green",
@@ -977,7 +982,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budget AS (\n                        SELECT SUM(budget_amount) as total\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        CASE \n                            WHEN c.total <= b.total THEN 1\n                            ELSE 0\n                        END as \"Budget Status\"\n                    FROM current_spend c, budget b;\n                ",
+          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budget AS (\n                        SELECT SUM(budget_amount) as total\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        CASE \n                            WHEN b.total IS NULL THEN -1\n                            WHEN c.total <= b.total THEN 1\n                            ELSE 0\n                        END as \"Budget Status\"\n                    FROM current_spend c, budget b;\n                ",
           "refId": "A",
           "select": [
             [
@@ -1072,7 +1077,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budget AS (\n                        SELECT SUM(budget_amount) as total\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        ROUND((c.total / NULLIF(b.total, 0) * 100)::numeric, 2) as \"Budget Used %\"\n                    FROM current_spend c, budget b;\n                ",
+          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budget AS (\n                        SELECT SUM(budget_amount) as total\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        COALESCE(ROUND((c.total / NULLIF(b.total, 0) * 100)::numeric, 2), 0) as \"Budget Used %\"\n                    FROM current_spend c, budget b;\n                ",
           "refId": "A",
           "select": [
             [
@@ -1216,7 +1221,7 @@
       "id": 102,
       "options": {
         "footer": {
-          "fields": "",
+          "fields": [],
           "reducer": [
             "sum"
           ],
@@ -1236,7 +1241,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budgets AS (\n                        SELECT \n                            name,\n                            budget_amount,\n                            time_period\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        b.name as \"Budget Name\",\n                        ROUND(b.budget_amount::numeric, 2) as \"Budget Amount\",\n                        ROUND(c.total::numeric, 2) as \"Actual Spend\",\n                        ROUND((c.total / NULLIF(b.budget_amount, 0) * 100)::numeric, 2) as \"Used %\",\n                        ROUND((c.total - b.budget_amount)::numeric, 2) as \"Over/Under\",\n                        CASE \n                            WHEN c.total > b.budget_amount THEN '🔴 Over Budget'\n                            WHEN c.total > b.budget_amount * 0.9 THEN '🟡 Near Limit'\n                            ELSE '🟢 On Track'\n                        END as \"Status\"\n                    FROM budgets b, current_spend c\n                    ORDER BY \"Used %\" DESC;\n                ",
+          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT COALESCE(SUM(cost), 0) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budgets AS (\n                        SELECT name, budget_amount, time_period\n                        FROM cost_budgets\n                        WHERE is_active = true AND time_period = 'monthly'\n                    ),\n                    configured AS (\n                        SELECT b.name as \"Budget Name\", ROUND(b.budget_amount::numeric, 2) as \"Budget Amount\", ROUND(c.total::numeric, 2) as \"Actual Spend\", ROUND((c.total / NULLIF(b.budget_amount, 0) * 100)::numeric, 2) as \"Used %\", ROUND((c.total - b.budget_amount)::numeric, 2) as \"Over/Under\", CASE WHEN c.total > b.budget_amount THEN '🔴 Over Budget' WHEN c.total > b.budget_amount * 0.9 THEN '🟡 Near Limit' ELSE '🟢 On Track' END as \"Status\"\n                        FROM budgets b, current_spend c\n                    )\n                    SELECT * FROM configured\n                    UNION ALL\n                    SELECT 'No active monthly budget configured', 0::numeric, ROUND(c.total::numeric, 2), 0::numeric, 0::numeric, '⚪ Not Configured' FROM current_spend c WHERE NOT EXISTS (SELECT 1 FROM budgets)\n                    ORDER BY \"Used %\" DESC;\n                ",
           "refId": "A",
           "select": [
             [

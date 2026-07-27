@@ -9,11 +9,11 @@ from datetime import datetime, timedelta
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from openai import AsyncAzureOpenAI
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from src.monitoring.storage.models import CostRecord, AIRecommendation, CostBudget, Anomaly
+from src.integrations.llm.client import ChatClient, create_chat_client
+from src.models import CostRecord, AIRecommendation, CostBudget, Anomaly
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class AgentResponse(BaseModel):
 class BaseAgent:
     """Base class for all agents"""
     
-    def __init__(self, role: AgentRole, azure_client: AsyncAzureOpenAI, db_session: Session, deployment: str = "gpt-4o"):
+    def __init__(self, role: AgentRole, azure_client: ChatClient, db_session: Session, deployment: str = "gpt-4o"):
         self.role = role
         self.client = azure_client
         self.db = db_session
@@ -72,7 +72,7 @@ class BaseAgent:
 class DataAnalystAgent(BaseAgent):
     """Agent responsible for querying and analyzing cost data"""
     
-    def __init__(self, azure_client: AsyncAzureOpenAI, db_session: Session, deployment: str = "gpt-4o"):
+    def __init__(self, azure_client: ChatClient, db_session: Session, deployment: str = "gpt-4o"):
         super().__init__(AgentRole.DATA_ANALYST, azure_client, db_session, deployment)
     
     async def process(self, message: AgentMessage) -> AgentResponse:
@@ -207,7 +207,7 @@ class DataAnalystAgent(BaseAgent):
 class BudgetAdvisorAgent(BaseAgent):
     """Agent responsible for budget tracking and forecasting"""
     
-    def __init__(self, azure_client: AsyncAzureOpenAI, db_session: Session, deployment: str = "gpt-4o"):
+    def __init__(self, azure_client: ChatClient, db_session: Session, deployment: str = "gpt-4o"):
         super().__init__(AgentRole.BUDGET_ADVISOR, azure_client, db_session, deployment)
     
     async def process(self, message: AgentMessage) -> AgentResponse:
@@ -290,7 +290,7 @@ class BudgetAdvisorAgent(BaseAgent):
 class OptimizerAgent(BaseAgent):
     """Agent responsible for cost optimization recommendations"""
     
-    def __init__(self, azure_client: AsyncAzureOpenAI, db_session: Session, deployment: str = "gpt-4o"):
+    def __init__(self, azure_client: ChatClient, db_session: Session, deployment: str = "gpt-4o"):
         super().__init__(AgentRole.OPTIMIZER, azure_client, db_session, deployment)
     
     async def process(self, message: AgentMessage) -> AgentResponse:
@@ -358,7 +358,7 @@ class OptimizerAgent(BaseAgent):
 class AnomalyDetectorAgent(BaseAgent):
     """Agent responsible for detecting cost anomalies"""
     
-    def __init__(self, azure_client: AsyncAzureOpenAI, db_session: Session, deployment: str = "gpt-4o"):
+    def __init__(self, azure_client: ChatClient, db_session: Session, deployment: str = "gpt-4o"):
         super().__init__(AgentRole.ANOMALY_DETECTOR, azure_client, db_session, deployment)
     
     async def process(self, message: AgentMessage) -> AgentResponse:
@@ -425,7 +425,7 @@ class AnomalyDetectorAgent(BaseAgent):
 class OrchestratorAgent(BaseAgent):
     """Orchestrator that coordinates other agents"""
     
-    def __init__(self, azure_client: AsyncAzureOpenAI, db_session: Session, deployment: str = "gpt-4o"):
+    def __init__(self, azure_client: ChatClient, db_session: Session, deployment: str = "gpt-4o"):
         super().__init__(AgentRole.ORCHESTRATOR, azure_client, db_session, deployment)
         self.agents: Dict[AgentRole, BaseAgent] = {}
     
@@ -527,56 +527,24 @@ class OrchestratorAgent(BaseAgent):
 
 
 class MultiAgentSystem:
-    """Multi-agent system for cost analysis — supports Azure OpenAI and Claude"""
-    
-    def __init__(self, azure_openai_key: str = None, azure_openai_endpoint: str = None, db_session: Session = None):
-        import os
+    """Multi-agent cost analysis using the configured model provider or rules."""
+
+    def __init__(self, db_session: Session = None):
         self.db = db_session
-        self.fallback_only = False
-        
-        # ------------------------------------------------------------------
-        # Priority: 1) Anthropic Claude  2) Azure OpenAI  3) Fallback
-        # ------------------------------------------------------------------
-        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-        claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
-        
-        if anthropic_key:
-            # ── Use Claude ──
-            from src.monitoring.recommendations.claude_adapter import ClaudeAdapter
-            self.client = ClaudeAdapter(api_key=anthropic_key, model=claude_model)
-            self.deployment = claude_model
-            self.orchestrator = OrchestratorAgent(self.client, db_session, self.deployment)
-            self.orchestrator.register_agent(DataAnalystAgent(self.client, db_session, self.deployment))
-            self.orchestrator.register_agent(BudgetAdvisorAgent(self.client, db_session, self.deployment))
-            self.orchestrator.register_agent(OptimizerAgent(self.client, db_session, self.deployment))
-            self.orchestrator.register_agent(AnomalyDetectorAgent(self.client, db_session, self.deployment))
-            logger.info("MultiAgentSystem using Claude (%s)", claude_model)
-            return
-        
-        # ── Check for Azure OpenAI ──
-        key = azure_openai_key or os.getenv('AZURE_OPENAI_KEY', '')
-        endpoint = azure_openai_endpoint or os.getenv('AZURE_OPENAI_ENDPOINT', '')
-        
-        if key and endpoint:
-            self.deployment = os.getenv('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o')
-            self.client = AsyncAzureOpenAI(
-                api_key=key,
-                api_version="2024-02-15-preview",
-                azure_endpoint=endpoint
-            )
-            self.orchestrator = OrchestratorAgent(self.client, db_session, self.deployment)
-            self.orchestrator.register_agent(DataAnalystAgent(self.client, db_session, self.deployment))
-            self.orchestrator.register_agent(BudgetAdvisorAgent(self.client, db_session, self.deployment))
-            self.orchestrator.register_agent(OptimizerAgent(self.client, db_session, self.deployment))
-            self.orchestrator.register_agent(AnomalyDetectorAgent(self.client, db_session, self.deployment))
-            logger.info("MultiAgentSystem using Azure OpenAI (%s)", self.deployment)
-            return
-        
-        # ── Fallback: no LLM available ──
-        self.fallback_only = True
-        self.client = None
+        self.client, self.deployment = create_chat_client()
+        self.fallback_only = self.client is None
         self.orchestrator = None
-        logger.info("MultiAgentSystem in fallback-only mode (no LLM keys configured)")
+
+        if self.client is None:
+            logger.info("MultiAgentSystem in fallback-only mode")
+            return
+
+        self.orchestrator = OrchestratorAgent(self.client, db_session, self.deployment)
+        self.orchestrator.register_agent(DataAnalystAgent(self.client, db_session, self.deployment))
+        self.orchestrator.register_agent(BudgetAdvisorAgent(self.client, db_session, self.deployment))
+        self.orchestrator.register_agent(OptimizerAgent(self.client, db_session, self.deployment))
+        self.orchestrator.register_agent(AnomalyDetectorAgent(self.client, db_session, self.deployment))
+        logger.info("MultiAgentSystem using configured model %s", self.deployment)
     
     async def query(self, user_message: str) -> str:
         """Process user query through multi-agent system"""
@@ -595,7 +563,7 @@ class MultiAgentSystem:
             return response.content
         except Exception as e:
             # Fallback to rule-based responses if Azure OpenAI is unreachable
-            logger.warning(f"Azure OpenAI unavailable, using fallback: {str(e)}")
+            logger.warning("Configured language model unavailable; using fallback: %s", e)
             return self._fallback_response(user_message)
     
     def _fallback_response(self, query: str) -> str:

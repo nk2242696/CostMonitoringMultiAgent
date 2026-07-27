@@ -1,135 +1,160 @@
+name: azure-cost-monitor
+
+x-app-environment: &app-environment
+  ENVIRONMENT: docker
+  CONFIG_DIR: /app/config
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-azure_cost}
+  POSTGRES_USER: ${POSTGRES_USER:-cost_monitor}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+  AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+  AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+  AZURE_SUBSCRIPTION_IDS: ${AZURE_SUBSCRIPTION_IDS:-}
+  LLM_PROVIDER: ${LLM_PROVIDER:-disabled}
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-gpt-4o}
+  LLM_API_VERSION: ${LLM_API_VERSION:-2024-12-01-preview}
+  DATABRICKS_HOST: ${DATABRICKS_HOST:-}
+  DATABRICKS_TOKEN: ${DATABRICKS_TOKEN:-}
+  WORKSPACE_CONFIG_PATH: /app/config/workspace.yaml
+
+x-app-service: &app-service
+  build:
+    context: .
+  image: azure-cost-monitor:${APP_VERSION:-local}
+  environment: *app-environment
+  networks:
+    - cost-monitor
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
 services:
-  # PostgreSQL with TimescaleDB
   postgres:
-    image: timescale/timescaledb:latest-pg14
-    container_name: azure-cost-db
+    image: timescale/timescaledb:2.17.2-pg16
     environment:
-      POSTGRES_DB: azure_cost_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AzureCost2025!DbPass}
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-azure_cost}
+      POSTGRES_USER: ${POSTGRES_USER:-cost_monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - azure-cost-network
+      - cost-monitor
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cost_monitor} -d ${POSTGRES_DB:-azure_cost}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
-  # Prometheus
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: azure-cost-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    networks:
-      - azure-cost-network
-    restart: unless-stopped
-
-  # Grafana
-  grafana:
-    image: grafana/grafana:latest
-    container_name: azure-cost-grafana
-    # No longer expose port 3000 directly - access via nginx on 3001
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-AzureCost2025!SecurePass}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=false
-      - GF_AUTH_BASIC_ENABLED=true
-      - GF_SECURITY_COOKIE_SECURE=true
-      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=true
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./config/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-      - ./config/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
-      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+  migrate:
+    <<: *app-service
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
     depends_on:
-      - prometheus
-      - postgres
-    networks:
-      - azure-cost-network
-    restart: unless-stopped
+      postgres:
+        condition: service_healthy
 
-  # Nginx Reverse Proxy (injects chat button into Grafana)
-  nginx:
-    image: nginx:alpine
-    container_name: azure-cost-nginx
-    ports:
-      - "3001:80"
-    volumes:
-      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - grafana
-    networks:
-      - azure-cost-network
-    restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  # FastAPI Application
   api:
-    build: .
-    container_name: azure-cost-api
-    environment:
-      - ENVIRONMENT=dev
-      - DB_HOST=postgres
-      - AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY}
-      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
-      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
-      - DATABRICKS_HOST=${DATABRICKS_HOST}
-      - DATABRICKS_TOKEN=${DATABRICKS_TOKEN}
+    <<: *app-service
     command: ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./config:/app/config
-      - ./logs:/app/logs
-      - ./architecture_review:/app/architecture_review
-    networks:
-      - azure-cost-network
-    restart: unless-stopped
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      start_period: 20s
+      retries: 5
 
-  # Prometheus Exporter
-  exporter:
-    build: .
-    container_name: azure-cost-exporter
-    command: python scripts/prometheus_exporter.py
-    environment:
-      - ENVIRONMENT=dev
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/azure_cost_dev
-    ports:
-      - "8001:8001"
+  worker:
+    <<: *app-service
+    command: ["python", "-m", "src.cli", "scheduler"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./src:/app/src
-      - ./scripts:/app/scripts
-      - ./config:/app/config
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
     networks:
-      - azure-cost-network
+      - cost-monitor
     restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/azure-cost-trends.json
+      POSTGRES_DB: ${POSTGRES_DB:-azure_cost}
+      POSTGRES_USER: ${POSTGRES_USER:-cost_monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data_v11:/var/lib/grafana
+      - ./config/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./config/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - cost-monitor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/health >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
 
 volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
+  grafana_data_v11:
 
 networks:
-  azure-cost-network:
+  cost-monitor:
     driver: bridge

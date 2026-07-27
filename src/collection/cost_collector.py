@@ -7,19 +7,38 @@ stores it into the unified cost_records table.
 """
 
 import logging
+import os
+import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+from azure.core.credentials import AccessToken, AccessTokenInfo
 from azure.core.exceptions import AzureError
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.mgmt.costmanagement import CostManagementClient
-from azure.mgmt.resource import SubscriptionClient
+from azure.mgmt.subscription import SubscriptionClient
 from sqlalchemy.orm import Session
 
 from src.models import CostRecord, CostAggregation
 
 logger = logging.getLogger(__name__)
+
+
+class AzureAccessTokenCredential:
+    """Credential adapter for an ephemeral token supplied by local tooling."""
+
+    def __init__(self, token: str, expires_on: int):
+        if expires_on <= int(time.time()) + 60:
+            raise ValueError("AZURE_ACCESS_TOKEN is expired or expires within 60 seconds")
+        self._token = token
+        self._expires_on = expires_on
+
+    def get_token(self, *scopes, **kwargs) -> AccessToken:
+        return AccessToken(self._token, self._expires_on)
+
+    def get_token_info(self, *scopes, options=None) -> AccessTokenInfo:
+        return AccessTokenInfo(self._token, self._expires_on)
 
 
 class CostCollector:
@@ -40,8 +59,6 @@ class CostCollector:
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
     ):
-        import os
-
         self.tenant_id = tenant_id or os.getenv("AZURE_TENANT_ID")
         self.client_id = client_id or os.getenv("AZURE_CLIENT_ID")
         self.client_secret = client_secret or os.getenv("AZURE_CLIENT_SECRET")
@@ -53,15 +70,41 @@ class CostCollector:
     # ------------------------------------------------------------------
 
     def _get_credential(self):
-        if self.tenant_id and self.client_id and self.client_secret:
+        access_token = os.getenv("AZURE_ACCESS_TOKEN", "").strip()
+        access_token_expires_on = os.getenv("AZURE_ACCESS_TOKEN_EXPIRES_ON", "").strip()
+        if access_token:
+            if not access_token_expires_on:
+                raise ValueError(
+                    "AZURE_ACCESS_TOKEN_EXPIRES_ON is required with AZURE_ACCESS_TOKEN"
+                )
+            try:
+                expires_on = int(access_token_expires_on)
+            except ValueError as exc:
+                raise ValueError("AZURE_ACCESS_TOKEN_EXPIRES_ON must be a Unix timestamp") from exc
+            logger.info("Using ephemeral Azure CLI access token")
+            return AzureAccessTokenCredential(access_token, expires_on)
+
+        credential_values = (self.tenant_id, self.client_id, self.client_secret)
+        if any(credential_values) and not all(credential_values):
+            raise ValueError(
+                "AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET "
+                "must all be set for service-principal authentication"
+            )
+        if all(credential_values):
             logger.info("Using Service Principal authentication")
+            assert self.tenant_id is not None
+            assert self.client_id is not None
+            assert self.client_secret is not None
             return ClientSecretCredential(
                 tenant_id=self.tenant_id,
                 client_id=self.client_id,
                 client_secret=self.client_secret,
             )
         logger.info("Using DefaultAzureCredential (CLI / Managed Identity)")
-        return DefaultAzureCredential()
+        # Docker Compose passes optional variables as empty strings. Excluding
+        # EnvironmentCredential prevents those placeholders from being treated
+        # as a malformed service principal while retaining managed identity.
+        return DefaultAzureCredential(exclude_environment_credential=True)
 
     # ------------------------------------------------------------------
     # Subscription discovery
@@ -77,7 +120,7 @@ class CostCollector:
                     "subscription_id": s.subscription_id,
                     "display_name": s.display_name,
                     "state": s.state,
-                    "tenant_id": s.tenant_id,
+                    "tenant_id": getattr(s, "tenant_id", self.tenant_id),
                 }
             )
         logger.info("Discovered %d subscriptions", len(subs))
@@ -90,13 +133,13 @@ class CostCollector:
         """
         try:
             from azure.mgmt.resourcegraph import ResourceGraphClient
-            from azure.mgmt.resourcegraph.models import QueryRequest
+            from azure.mgmt.resourcegraph.models import QueryRequest, QueryRequestOptions
 
             client = ResourceGraphClient(self.credential)
             query = QueryRequest(
                 subscriptions=[subscription_id],
                 query="Resources | project id, tags, type, location | where isnotnull(tags)",
-                options={"resultFormat": "objectArray"},
+                options=QueryRequestOptions(result_format="objectArray"),
             )
             result = client.resources(query)
             tag_map = {}
@@ -318,6 +361,27 @@ class CostCollector:
         logger.info("Persisted %d cost records", count)
         return count
 
+    def replace_cost_records(
+        self, db: Session, records: List[Dict], subscription_name: str = ""
+    ) -> int:
+        """Atomically replace one subscription's successfully fetched date window.
+
+        Azure Cost Management returns aggregates rather than stable row IDs. A
+        scheduled collection must therefore replace its covered window instead
+        of appending the same aggregates every hour.
+        """
+        if not records:
+            return 0
+
+        parsed_dates = [self._parse_azure_date(record["date"]) for record in records]
+        subscription_id = records[0]["subscription_id"]
+        db.query(CostRecord).filter(
+            CostRecord.subscription_id == subscription_id,
+            CostRecord.date >= min(parsed_dates),
+            CostRecord.date <= max(parsed_dates),
+        ).delete(synchronize_session=False)
+        return self.persist_cost_records(db, records, subscription_name)
+
     def build_aggregations(
         self,
         db: Session,
@@ -334,6 +398,12 @@ class CostCollector:
         start_date = start_date or (datetime.utcnow() - timedelta(days=30))
         end_date = end_date or datetime.utcnow()
         count = 0
+
+        db.query(CostAggregation).filter(
+            CostAggregation.subscription_id == subscription_id,
+            CostAggregation.date >= start_date,
+            CostAggregation.date <= end_date,
+        ).delete(synchronize_session=False)
 
         for dimension_col, dimension_name in [
             (CostRecord.subscription_id, "subscription"),
@@ -411,7 +481,7 @@ def run_collection(
                     except Exception:
                         pass  # Tags are best-effort, don't block collection
 
-                    collector.persist_cost_records(session, records)
+                    collector.replace_cost_records(session, records)
                     collector.build_aggregations(session, sub_id, start_date, end_date)
                     collected += 1
                     logger.info("[%d/%d] ✅ %s — %d records", i+1, len(subscription_ids), sub_id[:12], len(records))

@@ -175,30 +175,50 @@ def generate_recommendations(
     subscription_id: Optional[str] = None,
     db: Session = Depends(get_session),
 ):
-    """Generate AI-powered cost optimization recommendations using GPT-4o."""
-    import subprocess
-    import sys
+    """Generate or refresh provider-backed Tier-1 cost recommendations."""
+    from src.integrations.llm.client import LLMSettings
+    from src.models import CostRecord
+    from src.recommendations.architecture_reviewer import ArchitectureRecommender
 
-    # Run the AI generator script as a subprocess so it doesn't block the API
-    result = subprocess.run(
-        [sys.executable, "scripts/generate_ai_recommendations.py"],
-        capture_output=True,
-        text=True,
-        timeout=600,
-        env={**__import__("os").environ, "ENVIRONMENT": "dev"},
+    services_query = db.query(
+        CostRecord.subscription_id,
+        CostRecord.service_name,
+        sqla_func.sum(CostRecord.cost).label("total_cost"),
     )
+    if subscription_id:
+        services_query = services_query.filter(CostRecord.subscription_id == subscription_id)
 
-    if result.returncode != 0:
-        raise HTTPException(500, f"Generation failed: {result.stderr[-500:]}")
+    services = (
+        services_query.group_by(CostRecord.subscription_id, CostRecord.service_name)
+        .order_by(desc("total_cost"))
+        .limit(100)
+        .all()
+    )
+    service_data = [
+        {
+            "subscription_id": row.subscription_id,
+            "service_name": row.service_name,
+            "total_cost": float(row.total_cost),
+        }
+        for row in services
+    ]
 
-    # Count what was generated
-    total = db.query(sqla_func.count(AIRecommendation.id)).scalar() or 0
-    total_savings = float(db.query(sqla_func.sum(AIRecommendation.potential_savings)).scalar() or 0)
+    try:
+        recommendations = ArchitectureRecommender(db).analyse_gaps(service_data)
+    except Exception as exc:
+        logger.exception("Recommendation generation failed")
+        raise HTTPException(502, f"Recommendation generation failed: {exc}") from exc
+
+    total_savings = sum(float(rec.potential_savings or 0) for rec in recommendations)
+    provider = LLMSettings.from_env().provider
+    llm_count = sum(rec.source == "llm_enhanced_reference" for rec in recommendations)
 
     return {
-        "message": f"Generated {total} AI-powered recommendations using GPT-4o.",
+        "message": f"Generated or updated {len(recommendations)} recommendations.",
+        "llm_enhanced": llm_count,
+        "fallback_generated": len(recommendations) - llm_count,
         "total_potential_savings": total_savings,
-        "source": "ai_engine (gpt-4o)",
+        "provider": provider,
     }
 
 

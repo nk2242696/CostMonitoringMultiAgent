@@ -1,0 +1,15 @@
+organization:
+  name: "My Organization"
+  currency: "USD"
+  monthly_budget: null
+
+environments:
+  - name: "production"
+    subscription_ids: []
+    required_tags:
+      Environment: "Production"
+    excluded_resource_types: []
+    risk_tolerance: "low"
+    allow_automated_remediation: false
+
+minimum_monthly_savings: 10.0

@@ -107,7 +107,7 @@
       },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 19 },
       "id": 7,
-      "options": { "cellHeight": "md", "footer": { "countRows": false, "fields": "Direct Cost", "reducer": ["sum"], "show": true }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Direct Cost" }] },
+      "options": { "cellHeight": "md", "footer": { "countRows": false, "fields": ["Direct Cost"], "reducer": ["sum"], "show": true }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Direct Cost" }] },
       "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "WITH grouped AS (SELECT COALESCE(tags::json->>'${tag_key:raw}', 'UNTAGGED') as grp, ROUND(SUM(cost)::numeric, 2) as cost, COUNT(DISTINCT resource_id) as resources, COUNT(DISTINCT service_name) as services FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}')) GROUP BY grp), total AS (SELECT SUM(cost) as t FROM grouped) SELECT g.grp as \"Group\", g.cost as \"Direct Cost\", ROUND(g.cost / NULLIF(t.t, 0) * 100, 1) as \"% of Total\", g.resources as \"Resources\", g.services as \"Services\" FROM grouped g, total t ORDER BY g.cost DESC;" }],
       "title": "Cost Allocation Table — by ${tag_key}",
       "type": "table"

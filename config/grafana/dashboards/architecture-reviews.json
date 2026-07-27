@@ -29,7 +29,7 @@
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"Reviews Completed\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"Reviews Completed\" FROM ai_recommendations WHERE tier = 1 AND status = 'pending' AND ('${subscription:raw}' = 'all' OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -43,7 +43,7 @@
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(potential_savings), 0) as \"Identified Savings\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(potential_savings), 0) as \"Identified Savings\" FROM ai_recommendations WHERE tier = 1 AND status = 'pending' AND ('${subscription:raw}' = 'all' OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -57,7 +57,7 @@
       "id": 8,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(current_cost), 0) as \"Current Monthly Cost\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(current_cost), 0) as \"Current Monthly Cost\" FROM ai_recommendations WHERE tier = 1 AND status = 'pending' AND ('${subscription:raw}' = 'all' OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -71,7 +71,7 @@
       "id": 9,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(AVG(savings_percentage)::numeric, 1) as \"Avg Reduction\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND savings_percentage IS NOT NULL AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(ROUND(AVG(savings_percentage)::numeric, 1), 0) as \"Avg Reduction\" FROM ai_recommendations WHERE tier = 1 AND status = 'pending' AND savings_percentage IS NOT NULL AND ('${subscription:raw}' = 'all' OR subscription_id IN (${subscription:sqlstring}));" }],
       "title": "",
       "transparent": true,
       "type": "stat"
@@ -157,12 +157,12 @@
       "id": 5,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "Savings/mo", "reducer": ["sum"], "show": true },
+        "footer": { "countRows": false, "fields": ["Savings/mo"], "reducer": ["sum"], "show": true },
         "showHeader": true,
         "sortBy": [{ "desc": true, "displayName": "Savings/mo" }]
       },
       "pluginVersion": "11.4.0",
-      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT \n  service_name as \"Service\",\n  priority as \"Priority\",\n  ROUND(current_cost::numeric, 0) as \"Current Cost\",\n  ROUND(potential_savings::numeric, 0) as \"Savings/mo\",\n  savings_percentage as \"Savings %\",\n  implementation_effort as \"Effort\",\n  description as \"Root Cause & Implementation Steps\"\nFROM ai_recommendations \nWHERE recommendation_type = 'architecture_review'\n  AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')))\nORDER BY potential_savings DESC;" }],
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT \n  service_name as \"Service\",\n  priority as \"Priority\",\n  ROUND(current_cost::numeric, 0) as \"Current Cost\",\n  ROUND(potential_savings::numeric, 0) as \"Savings/mo\",\n  savings_percentage as \"Savings %\",\n  implementation_effort as \"Effort\",\n  COALESCE(recommendation_text, description) as \"Root Cause & Implementation Steps\"\nFROM ai_recommendations \nWHERE tier = 1 AND status = 'pending'\n  AND ('${subscription:raw}' = 'all' OR subscription_id IN (${subscription:sqlstring}))\nORDER BY potential_savings DESC;" }],
       "title": "Architecture Reviews — Full Analysis & Implementation Plans",
       "type": "table"
     }
@@ -173,7 +173,8 @@
   "templating": {
     "list": [
       {
-        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "allValue": "all",
+        "current": { "selected": true, "text": "All", "value": "all" },
         "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
         "definition": "SELECT DISTINCT subscription_id FROM cost_records WHERE subscription_id IS NOT NULL ORDER BY subscription_id",
         "includeAll": true,

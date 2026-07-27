@@ -16,7 +16,9 @@ Usage:
 
 import argparse
 import logging
+import signal
 import sys
+import threading
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +43,30 @@ def cmd_collect(args):
     from src.collection.cost_collector import run_collection
     subs = args.subscriptions.split(",") if args.subscriptions else None
     run_collection(subscription_ids=subs, days=args.days)
+
+
+def cmd_discover_subscriptions(args):
+    """List Azure subscriptions available to the configured identity."""
+    from src.collection.cost_collector import CostCollector
+
+    subscriptions = CostCollector().discover_subscriptions()
+    for subscription in subscriptions:
+        print(f"{subscription['subscription_id']}\t{subscription['display_name']}\t{subscription['state']}")
+
+
+def cmd_config_validate(args):
+    """Load and validate application and AI configuration."""
+    from src.common.config import get_config
+    from src.integrations.llm.client import LLMSettings
+
+    config = get_config()
+    llm = LLMSettings.from_env()
+    llm.validate()
+    print(
+        f"Configuration valid: environment={config.environment}, "
+        f"database={config.database.host}/{config.database.database}, "
+        f"llm_provider={llm.provider}"
+    )
 
 
 def cmd_alerts_evaluate(args):
@@ -89,16 +115,21 @@ def cmd_recommend(args):
     with db.get_session() as session:
         services = (
             session.query(
+                CostRecord.subscription_id,
                 CostRecord.service_name,
                 sqla_func.sum(CostRecord.cost).label("total_cost"),
             )
-            .group_by(CostRecord.service_name)
+            .group_by(CostRecord.subscription_id, CostRecord.service_name)
             .order_by(desc("total_cost"))
-            .limit(20)
+            .limit(100)
             .all()
         )
         svc_list = [
-            {"service_name": s.service_name, "total_cost": float(s.total_cost)}
+            {
+                "subscription_id": s.subscription_id,
+                "service_name": s.service_name,
+                "total_cost": float(s.total_cost),
+            }
             for s in services
         ]
         recommender = ArchitectureRecommender(session)
@@ -144,17 +175,22 @@ def cmd_db_init(args):
 
 
 def cmd_scheduler(args):
-    """Start the background scheduler."""
-    from src.scheduler import start_scheduler
-    import time
+    """Run scheduled jobs as a dedicated foreground worker."""
+    from src.scheduler import start_scheduler, stop_scheduler
 
     start_scheduler()
-    print("✅ Background scheduler running. Press Ctrl+C to stop.")
+    stopped = threading.Event()
+
+    def request_shutdown(signum, frame):
+        logger.info("Worker received signal %s; shutting down", signum)
+        stopped.set()
+
+    signal.signal(signal.SIGTERM, request_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+    print("Background worker running. Press Ctrl+C to stop.")
     try:
-        while True:
-            time.sleep(60)
-    except KeyboardInterrupt:
-        from src.scheduler import stop_scheduler
+        stopped.wait()
+    finally:
         stop_scheduler()
 
 
@@ -177,6 +213,16 @@ def main():
     p.add_argument("--subscriptions", help="Comma-separated subscription IDs")
     p.add_argument("--days", type=int, default=30)
     p.set_defaults(func=cmd_collect)
+
+    # discover subscriptions
+    p = sub.add_parser("discover-subscriptions", help="List accessible Azure subscriptions")
+    p.set_defaults(func=cmd_discover_subscriptions)
+
+    # configuration
+    p = sub.add_parser("config", help="Configuration operations")
+    config_sub = p.add_subparsers(dest="config_command")
+    pv = config_sub.add_parser("validate", help="Validate application configuration")
+    pv.set_defaults(func=cmd_config_validate)
 
     # alerts
     p = sub.add_parser("alerts", help="Alert operations")
@@ -211,7 +257,7 @@ def main():
     pi.set_defaults(func=cmd_db_init)
 
     # scheduler
-    p = sub.add_parser("scheduler", help="Start background scheduler")
+    p = sub.add_parser("scheduler", help="Start the background worker")
     p.set_defaults(func=cmd_scheduler)
 
     args = parser.parse_args()

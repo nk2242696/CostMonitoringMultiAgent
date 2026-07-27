@@ -5,7 +5,6 @@ Preserved from existing implementation, cleaned up and moved into a router.
 """
 
 import logging
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -50,11 +49,7 @@ class ArchitectureReviewRequest(BaseModel):
 async def chat(request: ChatRequest, db: Session = Depends(get_session)):
     """Chat with AI agents about cost analysis."""
     try:
-        agent_system = MultiAgentSystem(
-            azure_openai_key=os.getenv("AZURE_OPENAI_KEY"),
-            azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            db_session=db,
-        )
+        agent_system = MultiAgentSystem(db_session=db)
         response_text = await agent_system.query(request.message)
         session_id = request.session_id or str(uuid.uuid4())
 
@@ -76,11 +71,7 @@ async def websocket_chat(websocket: WebSocket):
     db = next(get_session())
 
     try:
-        agent_system = MultiAgentSystem(
-            azure_openai_key=os.getenv("AZURE_OPENAI_KEY"),
-            azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            db_session=db,
-        )
+        agent_system = MultiAgentSystem(db_session=db)
 
         while True:
             data = await websocket.receive_json()

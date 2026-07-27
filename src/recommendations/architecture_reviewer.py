@@ -16,15 +16,15 @@ best-practice reference architectures and flags gaps such as:
   - Lack of cost governance tags
 """
 
+import json
 import logging
-import os
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from openai import AzureOpenAI
 from sqlalchemy.orm import Session
 
+from src.integrations.llm.client import ChatClient, create_sync_chat_client
 from src.models import AIRecommendation, ArchitectureReview
 
 logger = logging.getLogger(__name__)
@@ -92,6 +92,27 @@ REFERENCE_ARCHITECTURES: Dict[str, Dict[str, Any]] = {
     },
 }
 
+# Cost Management returns friendly meter service names, while Resource Graph
+# commonly returns provider namespaces. Accept both representations.
+SERVICE_ARCHITECTURE_ALIASES: Dict[str, str] = {
+    "virtual machines": "Microsoft.Compute",
+    "backup": "Microsoft.Compute",
+    "storage": "Microsoft.Storage",
+    "sql database": "Microsoft.Sql",
+    "azure databricks": "Microsoft.Databricks",
+    "virtual network": "Microsoft.Network",
+    "nat gateway": "Microsoft.Network",
+    "azure app service": "Microsoft.Web",
+    "functions": "Microsoft.Web",
+}
+
+
+def resolve_architecture_key(service_name: str) -> Optional[str]:
+    """Resolve a provider namespace or Cost Management display name."""
+    if service_name in REFERENCE_ARCHITECTURES:
+        return service_name
+    return SERVICE_ARCHITECTURE_ALIASES.get(service_name.strip().lower())
+
 
 class ArchitectureRecommender:
     """
@@ -103,19 +124,7 @@ class ArchitectureRecommender:
 
     def __init__(self, db: Session):
         self.db = db
-        self.openai_client = self._init_openai()
-
-    def _init_openai(self) -> Optional[AzureOpenAI]:
-        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        key = os.getenv("AZURE_OPENAI_KEY")
-        if endpoint and key:
-            return AzureOpenAI(
-                api_key=key,
-                api_version="2024-02-01",
-                azure_endpoint=endpoint,
-                timeout=60.0,
-            )
-        return None
+        self.openai_client, self.deployment = create_sync_chat_client()
 
     # ------------------------------------------------------------------
     # Gap Analysis against Reference Architectures
@@ -136,44 +145,151 @@ class ArchitectureRecommender:
             List of persisted AIRecommendation objects.
         """
         recommendations: List[AIRecommendation] = []
+        existing = {
+            (
+                rec.subscription_id,
+                rec.service_name,
+                (rec.rec_metadata or {}).get("reference_check"),
+            ): rec
+            for rec in self.db.query(AIRecommendation)
+            .filter(AIRecommendation.tier == 1)
+            .all()
+            if (rec.rec_metadata or {}).get("reference_check")
+        }
 
         for svc in services:
             svc_name = svc.get("service_name", "")
             total_cost = float(svc.get("total_cost", 0))
-            ref = REFERENCE_ARCHITECTURES.get(svc_name)
+            architecture_key = resolve_architecture_key(svc_name)
+            ref = REFERENCE_ARCHITECTURES.get(architecture_key) if architecture_key else None
             if not ref:
                 continue
 
             for check in ref["expected"]:
-                rec = AIRecommendation(
-                    recommendation_id=str(uuid.uuid4()),
-                    tier=1,
-                    source="reference_architecture",
-                    category=self._infer_category(svc_name),
-                    title=f"{check['description']} ({svc_name})",
-                    description=f"Reference architecture check: {check['description']}",
-                    recommendation_text=(
-                        f"For {svc_name} ({ref['name']}): ensure that '{check['description']}' "
-                        f"is implemented. This can reduce costs by up to {check['savings_pct']}%."
-                    ),
-                    subscription_id=svc.get("subscription_id"),
-                    service_name=svc_name,
-                    current_cost=total_cost,
-                    potential_savings=round(total_cost * check["savings_pct"] / 100, 2),
-                    savings_percentage=check["savings_pct"],
-                    priority=self._priority_from_cost(total_cost, check["savings_pct"]),
-                    confidence_score=0.80,
-                    implementation_effort="2-4 hours",
-                    action_items=self._check_action_items(svc_name, check["check"]),
-                    status="pending",
-                    rec_metadata={"reference_check": check["check"], "architecture_name": ref["name"]},
+                key = (svc.get("subscription_id"), svc_name, check["check"])
+                rec = existing.get(key)
+                if rec is None:
+                    rec = AIRecommendation(
+                        recommendation_id=str(uuid.uuid4()),
+                        tier=1,
+                        status="pending",
+                    )
+                    self.db.add(rec)
+                    existing[key] = rec
+
+                metadata = dict(rec.rec_metadata or {})
+                if not metadata.get("llm_enhanced"):
+                    rec.source = "reference_architecture"
+                rec.category = self._infer_category(architecture_key)
+                rec.title = f"{check['description']} ({svc_name})"
+                rec.description = f"Reference architecture check: {check['description']}"
+                rec.recommendation_text = (
+                    f"For {svc_name} ({ref['name']}): ensure that '{check['description']}' "
+                    f"is implemented. This can reduce costs by up to {check['savings_pct']}%."
                 )
-                self.db.add(rec)
+                rec.subscription_id = svc.get("subscription_id")
+                rec.service_name = svc_name
+                rec.current_cost = total_cost
+                rec.potential_savings = round(total_cost * check["savings_pct"] / 100, 2)
+                rec.savings_percentage = check["savings_pct"]
+                rec.priority = self._priority_from_cost(total_cost, check["savings_pct"])
+                rec.confidence_score = 0.80
+                rec.implementation_effort = "2-4 hours"
+                rec.action_items = self._check_action_items(architecture_key, check["check"])
+                metadata.update({
+                    "reference_check": check["check"],
+                    "architecture_name": ref["name"],
+                })
+                rec.rec_metadata = metadata
                 recommendations.append(rec)
 
+        if self.openai_client and recommendations:
+            pending_enrichment = [
+                rec
+                for rec in recommendations
+                if not (rec.rec_metadata or {}).get("llm_enhanced")
+            ]
+            self._enrich_with_llm(pending_enrichment)
+
         self.db.commit()
-        logger.info("Generated %d Tier-1 reference architecture recommendations", len(recommendations))
+        logger.info("Generated or updated %d Tier-1 recommendations", len(recommendations))
         return recommendations
+
+    def _enrich_with_llm(
+        self,
+        recommendations: List[AIRecommendation],
+        batch_size: int = 6,
+    ) -> None:
+        """Add actionable model-generated guidance without trusting it for savings math."""
+        for start in range(0, len(recommendations), batch_size):
+            batch = recommendations[start : start + batch_size]
+            inputs = [
+                {
+                    "index": index,
+                    "subscription_id": rec.subscription_id,
+                    "service": rec.service_name,
+                    "monthly_cost": float(rec.current_cost or 0),
+                    "architecture_check": (rec.rec_metadata or {}).get("reference_check"),
+                    "reference_guidance": rec.recommendation_text,
+                }
+                for index, rec in enumerate(batch)
+            ]
+            prompt = (
+                "Improve these Azure cost recommendations using the supplied facts only. "
+                "Do not invent resource utilization, SKUs, savings amounts, or observed settings. "
+                "For each input, return its index, a concise title, detailed recommendation_text, "
+                "3-5 actionable Azure Portal/CLI validation steps in action_items, and a realistic "
+                "implementation_effort. Return JSON as {\"recommendations\": [...]} only.\n\n"
+                f"INPUTS:\n{json.dumps(inputs)}"
+            )
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model=self.deployment,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an Azure FinOps architect. Recommendations must be "
+                                "specific, verifiable, conservative, and grounded in given data."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                    max_completion_tokens=7000,
+                )
+                content = response.choices[0].message.content or ""
+                if not content.strip():
+                    raise ValueError(
+                        f"Model returned no JSON (finish_reason={response.choices[0].finish_reason})"
+                    )
+                payload = json.loads(content)
+                for item in payload.get("recommendations", []):
+                    index = item.get("index")
+                    if not isinstance(index, int) or not 0 <= index < len(batch):
+                        continue
+                    rec = batch[index]
+                    rec.title = str(item.get("title") or rec.title)[:500]
+                    rec.recommendation_text = str(
+                        item.get("recommendation_text") or rec.recommendation_text
+                    )
+                    actions = item.get("action_items")
+                    if isinstance(actions, list) and actions:
+                        rec.action_items = [str(action) for action in actions[:5]]
+                    rec.implementation_effort = str(
+                        item.get("implementation_effort") or rec.implementation_effort
+                    )[:50]
+                    rec.source = "llm_enhanced_reference"
+                    metadata = dict(rec.rec_metadata or {})
+                    metadata.update({"llm_model": self.deployment, "llm_enhanced": True})
+                    rec.rec_metadata = metadata
+            except Exception as exc:
+                logger.warning(
+                    "LLM enrichment failed for recommendation batch %d-%d; using reference fallback: %s",
+                    start + 1,
+                    start + len(batch),
+                    exc,
+                )
 
     # ------------------------------------------------------------------
     # 3-Agent Architecture Review
@@ -194,7 +310,7 @@ class ArchitectureRecommender:
             raise RuntimeError("Azure OpenAI not configured – cannot run architecture review")
 
         review_id = review_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-        deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        deployment = self.deployment
 
         # Agent 1: Propose
         proposal = self._agent_propose(problem_statement, deployment)
@@ -249,7 +365,7 @@ class ArchitectureRecommender:
                 },
                 {"role": "user", "content": problem},
             ],
-            max_tokens=3000,
+            max_completion_tokens=5000,
         )
         return resp.choices[0].message.content
 
@@ -267,7 +383,7 @@ class ArchitectureRecommender:
                 },
                 {"role": "user", "content": f"PROBLEM:\n{problem}\n\nPROPOSAL:\n{proposal}"},
             ],
-            max_tokens=3000,
+            max_completion_tokens=5000,
         )
         return resp.choices[0].message.content
 
@@ -288,7 +404,7 @@ class ArchitectureRecommender:
                     "content": f"PROBLEM:\n{problem}\n\nPROPOSAL:\n{proposal}\n\nREVIEW:\n{review}",
                 },
             ],
-            max_tokens=3000,
+            max_completion_tokens=5000,
         )
         return resp.choices[0].message.content
 

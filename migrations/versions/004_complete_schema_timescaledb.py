@@ -76,6 +76,37 @@ def upgrade() -> None:
     )
     op.create_index("ix_cost_budgets_dates", "cost_budgets", ["start_date", "end_date"])
 
+    # ── cost_alerts (depends on cost_budgets) ──
+    op.create_table(
+        "cost_alerts",
+        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column("alert_id", sa.String(100), unique=True, nullable=False, index=True),
+        sa.Column("budget_id", sa.BigInteger, sa.ForeignKey("cost_budgets.id"), index=True),
+        sa.Column("alert_type", sa.String(50), nullable=False),
+        sa.Column("severity", sa.String(20), nullable=False, default="medium"),
+        sa.Column("title", sa.String(500), nullable=False),
+        sa.Column("description", sa.Text),
+        sa.Column("subscription_id", sa.String(100), index=True),
+        sa.Column("resource_group", sa.String(255)),
+        sa.Column("service_name", sa.String(255)),
+        sa.Column("threshold_value", sa.Float),
+        sa.Column("current_value", sa.Float),
+        sa.Column("threshold_percentage", sa.Float),
+        sa.Column("status", sa.String(50), default="active"),
+        sa.Column("notification_sent", sa.Boolean, default=False),
+        sa.Column("notification_channels", JSONB, default=list),
+        sa.Column("acknowledged_by", sa.String(255)),
+        sa.Column("acknowledged_at", sa.DateTime(timezone=True)),
+        sa.Column("resolved_at", sa.DateTime(timezone=True)),
+        sa.Column("context", JSONB, default=dict),
+        sa.Column("fired_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index("ix_cost_alerts_status", "cost_alerts", ["status"])
+    op.create_index("ix_cost_alerts_severity", "cost_alerts", ["severity"])
+    op.create_index("ix_cost_alerts_fired", "cost_alerts", ["fired_at"])
+
     # ── anomalies ──
     op.create_table(
         "anomalies",
@@ -193,51 +224,18 @@ def upgrade() -> None:
     op.create_index("ix_ai_rec_priority", "ai_recommendations", ["priority"])
     op.create_index("ix_ai_rec_service", "ai_recommendations", ["service_name"])
 
-    # ── TimescaleDB hypertable for cost_records ──
-    # This converts cost_records into a time-series hypertable.
-    # chunk_time_interval of 7 days is optimal for daily cost data queries.
-    op.execute(
-        "SELECT create_hypertable('cost_records', 'date', "
-        "chunk_time_interval => INTERVAL '7 days', "
-        "if_not_exists => TRUE, "
-        "migrate_data => TRUE);"
-    )
-
-    # ── Continuous aggregate for daily costs per subscription ──
-    # (TimescaleDB 2.x+ continuous aggregates)
-    op.execute("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS daily_costs_by_subscription
-        WITH (timescaledb.continuous) AS
-        SELECT
-            time_bucket('1 day', date) AS bucket,
-            subscription_id,
-            SUM(cost) AS total_cost,
-            COUNT(DISTINCT resource_id) AS resource_count,
-            COUNT(*) AS record_count
-        FROM cost_records
-        GROUP BY bucket, subscription_id
-        WITH NO DATA;
-    """)
-
-    # Refresh policy: refresh daily, covering the last 3 days
-    op.execute("""
-        SELECT add_continuous_aggregate_policy('daily_costs_by_subscription',
-            start_offset => INTERVAL '3 days',
-            end_offset => INTERVAL '1 hour',
-            schedule_interval => INTERVAL '1 day',
-            if_not_exists => TRUE
-        );
-    """)
+    # The TimescaleDB image is retained, but cost_records remains a regular
+    # PostgreSQL table. Timescale requires every unique key on a hypertable to
+    # include the partition column; the current public ORM uses an id-only key.
+    # A later schema migration can introduce a compatible composite key.
 
 
 def downgrade() -> None:
-    # Drop continuous aggregate
-    op.execute("DROP MATERIALIZED VIEW IF EXISTS daily_costs_by_subscription CASCADE;")
-
     # Drop tables in reverse dependency order
     op.drop_table("ai_recommendations")
     op.drop_table("resource_metadata")
     op.drop_table("cost_forecasts")
     op.drop_table("anomalies")
+    op.drop_table("cost_alerts")
     op.drop_table("cost_budgets")
     op.drop_table("cost_aggregations")

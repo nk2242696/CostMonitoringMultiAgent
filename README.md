@@ -1,274 +1,161 @@
-# Azure Cost Management System
+# Azure Cost Monitoring Multi-Agent Platform
 
-A comprehensive, production-ready Azure Cost Management System with three distinct layers: **Monitoring**, **Alerting**, and **Recommendations**. This system provides real-time cost visibility, intelligent alerting on anomalies and budget thresholds, and actionable cost optimization recommendations.
+A Docker-first FinOps platform for collecting Azure costs, visualizing spend, detecting budget risks, forecasting future cost, and generating reviewable optimization recommendations with an optional language model.
 
-## 🤖 **NEW: Three-Agent Architecture Review System**
+> The platform is advisory by default. It does not automatically modify Azure resources.
 
-**Get brutally honest Azure architecture feedback before you build!**
+## Overview
 
-This project now includes a powerful **AutoGen-based multi-agent system** that proposes, critiques, and approves Azure architectures with sharp focus on:
-- ✅ **Cost awareness** (surfaces hidden costs like VPN Gateway, Log Analytics ingestion)
-- ✅ **Execution reality** (realistic time estimates, skill gap analysis)
-- ✅ **Anti-over-engineering** (challenges unnecessary complexity)
+The project combines Azure Cost Management and Resource Graph data with deterministic analysis and optional AI enrichment. A FastAPI service exposes the data, a dedicated worker runs scheduled workflows, PostgreSQL/TimescaleDB stores the results, and provisioned Grafana dashboards make them explorable.
 
-**Quick start:**
-```bash
-pip install pyautogen openai
-python run_architecture_review.py --template cost_monitoring
+```mermaid
+flowchart LR
+    Azure[Azure APIs] --> Worker[Scheduled worker]
+    Model[Optional AI endpoint] --> Worker
+    Worker --> DB[(PostgreSQL / TimescaleDB)]
+    API[FastAPI] --> DB
+    Prometheus --> API
+    Grafana --> DB
+    Grafana --> Prometheus
+    User --> API
+    User --> Grafana
 ```
 
-**📚 Documentation:**
-- [Quick Start Guide](QUICK_START_AGENTS.md) - 5-minute setup
-- [Full Documentation](AGENT_SYSTEM_README.md) - Complete system guide
-- [Decision Guide](DECISION_GUIDE.md) - When to use which mode
-- [Workflow Diagrams](AGENT_WORKFLOW_DIAGRAM.md) - Visual architecture
+## Current features
 
----
+- Multi-subscription Azure cost collection; a blank subscription list discovers all accessible subscriptions.
+- Cost summaries and trends by subscription, service, resource type, and resource.
+- Budget rules, alerts, acknowledgements, and scheduled evaluation.
+- Cost forecasts with confidence bounds and accuracy backfill.
+- Tiered optimization recommendations with estimated savings and review status.
+- Optional recommendation enrichment through Azure OpenAI or an OpenAI-compatible endpoint.
+- Provider-neutral AI configuration with deterministic fallback when AI is disabled or unavailable.
+- Reference-architecture reviews and optional Databricks/Spark analysis.
+- FastAPI REST endpoints, Swagger UI, health probes, and Prometheus metrics.
+- Four provisioned Grafana dashboards: Azure Cost Trends, AI Recommendations, Architecture Reviews, and Chargeback.
+- Idempotent Alembic migrations and a separate APScheduler worker.
 
-## 🎯 Key Features
+## Docker services
 
-### Layer 1: Monitoring
-- Real-time cost data collection from Azure Cost Management API
-- Multi-subscription support
-- Time-series storage with TimescaleDB optimization
-- Historical trend analysis and forecasting
-- Anomaly detection using statistical methods
-- RESTful API for cost data access
+| Service | Purpose |
+| --- | --- |
+| `postgres` | TimescaleDB-backed canonical data store |
+| `migrate` | One-shot Alembic migration job |
+| `api` | FastAPI REST API and OpenAPI documentation |
+| `worker` | Scheduled collection, alerting, forecasting, and recommendations |
+| `prometheus` | API and runtime metrics collection |
+| `grafana` | Provisioned FinOps dashboards |
 
-### Layer 2: Alerting
-- Threshold-based alerts (budget, daily spend, etc.)
-- ML-powered anomaly detection
-- Predictive alerts based on spending patterns
-- Multi-channel notifications (Email, Slack, Teams, SMS, Webhooks)
-- Alert lifecycle management (acknowledgment, escalation, deduplication)
-- Complex rule engine with customizable conditions
+## Quick start
 
-### Layer 3: Recommendations
-- Azure Advisor integration
-- Compute optimization (right-sizing, idle VMs, Reserved Instances)
-- Storage optimization (orphaned disks, tier recommendations)
-- Database optimization (sizing, serverless recommendations)
-- Network optimization (unused IPs, data transfer costs)
-- ROI calculation and savings tracking
+### Prerequisites
 
-## 🏗️ Architecture
+- Docker Desktop with Docker Compose
+- An Azure identity with `Reader` and `Cost Management Reader` access
+- Optional Azure OpenAI or OpenAI-compatible model endpoint
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     FastAPI Application                      │
-├─────────────────────────────────────────────────────────────┤
-│  Monitoring Layer  │  Alerting Layer  │ Recommendation Layer │
-├────────────────────┼──────────────────┼─────────────────────┤
-│   Data Collection  │   Rules Engine   │     Analyzers       │
-│   Metrics Calc     │   Detectors      │   Savings Calc      │
-│   Anomaly Detect   │   Notifications  │   Azure Advisor     │
-├────────────────────┴──────────────────┴─────────────────────┤
-│              Redis Pub/Sub (Message Queue)                   │
-├─────────────────────────────────────────────────────────────┤
-│         PostgreSQL + TimescaleDB  │      Redis Cache        │
-└─────────────────────────────────────────────────────────────┘
-```
+### Start the platform
 
-## 📋 Prerequisites
+1. Clone the repository.
+2. Copy `.env.example` to `.env`.
+3. Replace every `CHANGE_ME` value with a different long random secret.
+4. Configure Azure authentication. Leave `AZURE_SUBSCRIPTION_IDS` blank to monitor all subscriptions visible to the identity.
+5. Optionally configure an AI provider, or retain `LLM_PROVIDER=disabled`.
+6. Start and verify the stack:
 
-- Python 3.10 or higher
-- PostgreSQL 14+ with TimescaleDB extension
-- Redis 6+
-- Azure Subscription with appropriate permissions
-- Azure AD App Registration or Managed Identity
+   ```powershell
+   docker compose up --build -d
+   docker compose ps
+   ```
 
-## 🚀 Quick Start
+7. Collect the latest Azure costs:
 
-### 1. Clone the Repository
+   ```powershell
+   docker compose run --rm api cost-monitor collect --days 30
+   ```
 
-```bash
-git clone https://github.com/your-org/azure-cost-agent.git
-cd azure-cost-agent
-```
+8. Open the services listed below.
 
-### 2. Install Dependencies
+For a complete walkthrough with screenshots, Azure permissions, AI configuration, validation, and troubleshooting, see the [setup guide](docs/setup-guide.md).
 
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+## Access
 
-# Install dependencies
-pip install -r requirements.txt
-```
+| Interface | Default URL |
+| --- | --- |
+| API documentation | <http://localhost:8000/docs> |
+| API health | <http://localhost:8000/health> |
+| Grafana | <http://localhost:3000> |
+| Prometheus | <http://localhost:9090> |
 
-### 3. Configure Environment
+Published ports can be changed in `.env`.
 
-Copy the example configuration and update with your values:
+## Screenshots
 
-```bash
-cp config/dev.yaml.example config/dev.yaml
-# Edit config/dev.yaml with your Azure credentials and database settings
-```
+### Interactive API documentation
 
-### 4. Setup Database
+![FastAPI Swagger UI showing the platform endpoints](docs/images/api-docs.png)
 
-```bash
-# Run database migrations
-alembic upgrade head
-```
+### Grafana sign-in
 
-### 5. Run the Application
+Use `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from your local `.env`.
 
-```bash
-# Start the API server
-uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+![Grafana sign-in page](docs/images/grafana-login.png)
 
-# Start the Celery worker (in another terminal)
-celery -A src.common.messaging.celery_app worker --loglevel=info
+### AI recommendations dashboard
 
-# Start the Celery beat scheduler (in another terminal)
-celery -A src.common.messaging.celery_app beat --loglevel=info
-```
+The subscription filter can remain set to **All** for a consolidated view.
 
-### 6. Access the API
+![Grafana AI Recommendations dashboard with the subscription filter set to All](docs/images/grafana-ai-recommendations.png)
 
-- **API Documentation**: http://localhost:8000/docs
-- **Alternative Docs**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
+### Monitoring verification
 
-## 🐳 Docker Deployment
+![Prometheus targets showing the API and Prometheus as healthy](docs/images/prometheus-targets.png)
 
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
+## AI providers
 
-# View logs
-docker-compose logs -f
+AI is optional. Rule-based recommendations remain available with `LLM_PROVIDER=disabled`.
 
-# Stop services
-docker-compose down
+- **Azure OpenAI:** set `LLM_PROVIDER=azure_openai`, the Azure endpoint, API key, deployment name, and supported API version.
+- **OpenAI-compatible:** set `LLM_PROVIDER=openai_compatible`, a `/v1` base URL, API key, and model name.
+
+The model is used to enrich actionable recommendations. Failed model calls do not remove deterministic guidance.
+
+## Common operations
+
+```powershell
+# Discover all subscriptions available to the configured identity
+docker compose run --rm api cost-monitor discover-subscriptions
+
+# Validate database, Azure, and AI configuration
+docker compose run --rm api cost-monitor config validate
+
+# Generate or enrich recommendations
+docker compose run --rm api cost-monitor recommend
+
+# Follow application logs
+docker compose logs -f api worker
+
+# Stop while retaining database and dashboard data
+docker compose down
 ```
 
-## 📊 API Endpoints
+`docker compose down -v` is destructive and removes local volumes.
 
-### Monitoring Layer
+## Security
 
-- `GET /api/v1/costs/summary` - Cost summary by period
-- `GET /api/v1/costs/by-resource-group` - Costs by resource group
-- `GET /api/v1/costs/by-service` - Costs by Azure service
-- `GET /api/v1/costs/trends` - Cost trends over time
-- `GET /api/v1/costs/anomalies` - Detected cost anomalies
-- `GET /api/v1/costs/forecast` - Cost forecasts
+- Never commit `.env`, cloud credentials, API keys, tokens, or unredacted customer data.
+- Publish only `.env.example`; it contains placeholders rather than credentials.
+- Use least-privilege Azure roles and rotate credentials regularly.
+- Review recommendations and generated scripts before applying changes.
+- Treat screenshots as public artifacts and redact subscription IDs, resource names, endpoints, and tenant data.
 
-### Alerting Layer
+## Tests
 
-- `POST /api/v1/alerts/rules` - Create alert rule
-- `GET /api/v1/alerts/rules` - List all alert rules
-- `GET /api/v1/alerts/active` - Get active alerts
-- `POST /api/v1/alerts/{id}/acknowledge` - Acknowledge alert
-- `POST /api/v1/alerts/{id}/resolve` - Resolve alert
-- `GET /api/v1/alerts/history` - Alert history
+Install development dependencies in a Python environment and run `pytest`. The default unit tests do not call live Azure services or billable AI endpoints.
 
-### Recommendation Layer
+## Documentation
 
-- `GET /api/v1/recommendations` - List all recommendations
-- `GET /api/v1/recommendations/{id}` - Get recommendation details
-- `POST /api/v1/recommendations/{id}/accept` - Accept recommendation
-- `POST /api/v1/recommendations/{id}/implement` - Mark as implemented
-- `GET /api/v1/recommendations/savings-report` - Savings achieved
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test file
-pytest tests/unit/monitoring/test_cost_collector.py
-```
-
-## 📦 Project Structure
-
-```
-azure-cost-agent/
-├── src/
-│   ├── monitoring/          # Layer 1: Cost Monitoring
-│   ├── alerting/            # Layer 2: Alerting
-│   ├── recommendations/     # Layer 3: Recommendations
-│   ├── common/              # Shared utilities
-│   └── api/                 # FastAPI application
-├── tests/                   # Test suite
-├── migrations/              # Database migrations
-├── config/                  # Configuration files
-├── docker/                  # Docker files
-├── docs/                    # Documentation
-└── scripts/                 # Utility scripts
-```
-
-## 🔧 Configuration
-
-Configuration is managed through YAML files in the `config/` directory:
-
-- `dev.yaml` - Development environment
-- `staging.yaml` - Staging environment
-- `prod.yaml` - Production environment
-
-Key configuration sections:
-
-- **Azure**: Credentials, subscription IDs, tenant ID
-- **Database**: PostgreSQL connection settings
-- **Redis**: Cache and message queue settings
-- **Notifications**: Email, Slack, Teams, SMS settings
-- **Monitoring**: Collection intervals, retention policies
-- **Alerting**: Default thresholds, escalation policies
-- **Recommendations**: Analysis schedules, savings targets
-
-## 🔐 Security
-
-- Azure Managed Identity for authentication (no stored credentials)
-- Role-Based Access Control (RBAC)
-- TLS 1.3 for all communications
-- Encrypted secrets using Azure Key Vault
-- Rate limiting (100 req/min per user)
-- Audit logging for all actions
-- Input validation and sanitization
-
-## 📈 Performance Metrics
-
-- Data collection latency: <5 minutes
-- Alert trigger latency: <2 minutes
-- API response time: <500ms (95th percentile)
-- Database query time: <100ms (common queries)
-- Supports 1000+ resources across 10+ subscriptions
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-For support, email support@example.com or open an issue on GitHub.
-
-## 🗺️ Roadmap
-
-- [ ] Web-based dashboard UI
-- [ ] Mobile app for alerts
-- [ ] AI-powered cost analysis chatbot
-- [ ] Multi-cloud support (AWS, GCP)
-- [ ] Automated remediation workflows
-- [ ] Cost allocation and chargeback
-- [ ] Natural language query interface
-
-## 🙏 Acknowledgments
-
-- Azure SDK for Python
-- FastAPI framework
-- TimescaleDB for time-series optimization
-- Prophet for forecasting
+- [Setup guide](docs/setup-guide.md)
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [Operations](docs/operations.md)

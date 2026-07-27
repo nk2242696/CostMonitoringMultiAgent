@@ -56,34 +56,6 @@ def upgrade() -> None:
     op.create_index("ix_cost_records_service_date", "cost_records", ["service_name", "date"])
     op.create_index("ix_cost_records_resource_type_date", "cost_records", ["resource_type", "date"])
 
-    # cost_alerts
-    op.create_table(
-        "cost_alerts",
-        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
-        sa.Column("alert_id", sa.String(100), unique=True, nullable=False, index=True),
-        sa.Column("budget_id", sa.BigInteger, sa.ForeignKey("cost_budgets.id"), index=True),
-        sa.Column("alert_type", sa.String(50), nullable=False),
-        sa.Column("severity", sa.String(20), nullable=False, default="medium"),
-        sa.Column("title", sa.String(500), nullable=False),
-        sa.Column("description", sa.Text),
-        sa.Column("subscription_id", sa.String(100), index=True),
-        sa.Column("resource_group", sa.String(255)),
-        sa.Column("service_name", sa.String(255)),
-        sa.Column("threshold_value", sa.Float),
-        sa.Column("current_value", sa.Float),
-        sa.Column("threshold_percentage", sa.Float),
-        sa.Column("status", sa.String(50), default="active"),
-        sa.Column("notification_sent", sa.Boolean, default=False),
-        sa.Column("notification_channels", JSONB, default=list),
-        sa.Column("acknowledged_by", sa.String(255)),
-        sa.Column("acknowledged_at", sa.DateTime(timezone=True)),
-        sa.Column("resolved_at", sa.DateTime(timezone=True)),
-        sa.Column("context", JSONB, default=dict),
-        sa.Column("fired_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
-
     # spark_job_analyses
     op.create_table(
         "spark_job_analyses",
@@ -145,7 +117,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("architecture_reviews")
     op.drop_table("spark_job_analyses")
-    op.drop_table("cost_alerts")
     op.drop_index("ix_cost_records_resource_type_date", "cost_records")
     op.drop_index("ix_cost_records_service_date", "cost_records")
     op.drop_index("ix_cost_records_date_sub", "cost_records")

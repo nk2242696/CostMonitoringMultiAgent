@@ -47,7 +47,7 @@ class BaseRepository(Generic[T]):
         self.db = db
 
     def get_by_id(self, record_id: int) -> Optional[T]:
-        return self.db.query(self.model).get(record_id)
+        return self.db.get(self.model, record_id)
 
     def get_all(self, limit: int = 100, offset: int = 0) -> List[T]:
         return self.db.query(self.model).limit(limit).offset(offset).all()

@@ -2,6 +2,7 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -9,14 +10,31 @@ datasources:
     editable: true
 
   - name: PostgreSQL
+    uid: postgres
     type: postgres
     access: proxy
     url: postgres:5432
-    user: postgres
+    user: $__env{POSTGRES_USER}
     secureJsonData:
-      password: AzureCost2025!DbPass
+      password: $__env{POSTGRES_PASSWORD}
     jsonData:
-      database: azure_cost_dev
+      database: $__env{POSTGRES_DB}
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    editable: true
+
+  - name: PostgreSQL Dashboards
+    uid: PCC52D03280B7034C
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: $__env{POSTGRES_USER}
+    secureJsonData:
+      password: $__env{POSTGRES_PASSWORD}
+    jsonData:
+      database: $__env{POSTGRES_DB}
       sslmode: disable
       maxOpenConns: 10
       maxIdleConns: 2

@@ -80,16 +80,21 @@ def _run_recommendations():
     with db.get_session() as session:
         services = (
             session.query(
+                CostRecord.subscription_id,
                 CostRecord.service_name,
                 sqla_func.sum(CostRecord.cost).label("total_cost"),
             )
-            .group_by(CostRecord.service_name)
+            .group_by(CostRecord.subscription_id, CostRecord.service_name)
             .order_by(desc("total_cost"))
-            .limit(20)
+            .limit(100)
             .all()
         )
         svc_list = [
-            {"service_name": s.service_name, "total_cost": float(s.total_cost)}
+            {
+                "subscription_id": s.subscription_id,
+                "service_name": s.service_name,
+                "total_cost": float(s.total_cost),
+            }
             for s in services
         ]
         recommender = ArchitectureRecommender(session)
@@ -103,7 +108,10 @@ def start_scheduler():
     if _scheduler and _scheduler.running:
         return
 
-    _scheduler = BackgroundScheduler(timezone="UTC")
+    _scheduler = BackgroundScheduler(
+        timezone="UTC",
+        job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 300},
+    )
 
     # Cost collection: every hour
     _scheduler.add_job(

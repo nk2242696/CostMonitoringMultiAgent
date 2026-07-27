@@ -9,9 +9,10 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import yaml
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
@@ -43,38 +44,10 @@ class DatabaseConfig(BaseSettings):
         if self.use_sqlite or not self.host:
             return f"sqlite:///{self.database}"
         ssl = f"?sslmode={self.ssl_mode}" if self.ssl_mode else ""
-        return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}{ssl}"
-
-
-class RedisConfig(BaseSettings):
-    """Redis configuration."""
-    host: str
-    port: int = 6379
-    db: int = 0
-    password: Optional[str] = None
-    decode_responses: bool = True
-    max_connections: int = 50
-    ssl: bool = False
-
-    @property
-    def url(self) -> str:
-        """Get Redis URL."""
-        password_part = f":{self.password}@" if self.password else ""
-        protocol = "rediss" if self.ssl else "redis"
-        return f"{protocol}://{password_part}{self.host}:{self.port}/{self.db}"
-
-
-class CeleryConfig(BaseSettings):
-    """Celery configuration."""
-    broker_url: str
-    result_backend: str
-    task_serializer: str = "json"
-    result_serializer: str = "json"
-    accept_content: List[str] = Field(default_factory=lambda: ["json"])
-    timezone: str = "UTC"
-    enable_utc: bool = True
-    worker_prefetch_multiplier: int = 4
-    worker_max_tasks_per_child: int = 1000
+        username = quote(self.username, safe="")
+        password = quote(self.password, safe="")
+        database = quote(self.database, safe="")
+        return f"postgresql://{username}:{password}@{self.host}:{self.port}/{database}{ssl}"
 
 
 class APIConfig(BaseSettings):
@@ -145,6 +118,33 @@ class FeaturesConfig(BaseSettings):
     enable_savings_reporting: bool = True
 
 
+class OrganizationConfig(BaseModel):
+    """Non-secret organization context supplied to analysis workflows."""
+
+    name: str = "My Organization"
+    currency: str = "USD"
+    monthly_budget: Optional[float] = None
+
+
+class WorkEnvironmentConfig(BaseModel):
+    """An Azure workload environment and its optimization constraints."""
+
+    name: str
+    subscription_ids: List[str] = Field(default_factory=list)
+    required_tags: Dict[str, str] = Field(default_factory=dict)
+    excluded_resource_types: List[str] = Field(default_factory=list)
+    risk_tolerance: str = "medium"
+    allow_automated_remediation: bool = False
+
+
+class WorkspaceConfig(BaseModel):
+    """User-owned, non-secret context loaded from config/workspace.yaml."""
+
+    organization: OrganizationConfig = Field(default_factory=OrganizationConfig)
+    environments: List[WorkEnvironmentConfig] = Field(default_factory=list)
+    minimum_monthly_savings: float = 10.0
+
+
 class Config:
     """Main configuration class."""
 
@@ -155,14 +155,12 @@ class Config:
         Args:
             environment: Environment name (dev, staging, prod). Defaults to ENVIRONMENT env var.
         """
-        self.environment = environment or os.getenv("ENVIRONMENT", "dev")
+        self.environment = environment or os.getenv("ENVIRONMENT", "docker")
         self._config_data = self._load_config()
 
         # Initialize all config sections
         self.azure = AzureConfig(**self._config_data.get("azure", {}))
         self.database = DatabaseConfig(**self._config_data.get("database", {}))
-        self.redis = RedisConfig(**self._config_data.get("redis", {}))
-        self.celery = CeleryConfig(**self._config_data.get("celery", {}))
         self.api = APIConfig(**self._config_data.get("api", {}))
         self.monitoring = MonitoringConfig(**self._config_data.get("monitoring", {}))
         self.alerting = AlertingConfig(**self._config_data.get("alerting", {}))
@@ -170,6 +168,7 @@ class Config:
         self.logging = LoggingConfig(**self._config_data.get("logging", {}))
         self.security = SecurityConfig(**self._config_data.get("security", {}))
         self.features = FeaturesConfig(**self._config_data.get("features", {}))
+        self.workspace = self._load_workspace_config()
 
     def _load_config(self) -> Dict[str, Any]:
         """
@@ -178,7 +177,12 @@ class Config:
         Returns:
             Configuration dictionary
         """
-        config_dir = Path(__file__).parent.parent.parent / "config"
+        config_dir = Path(
+            os.getenv(
+                "CONFIG_DIR",
+                str(Path(__file__).parent.parent.parent / "config"),
+            )
+        )
         config_file = config_dir / f"{self.environment}.yaml"
 
         if not config_file.exists():
@@ -216,6 +220,21 @@ class Config:
             return re.sub(pattern, replace_env_var, config)
         else:
             return config
+
+    def _load_workspace_config(self) -> WorkspaceConfig:
+        """Load non-secret user context from the configured YAML file."""
+        config_dir = Path(
+            os.getenv(
+                "CONFIG_DIR",
+                str(Path(__file__).parent.parent.parent / "config"),
+            )
+        )
+        default_path = config_dir / "workspace.yaml"
+        workspace_path = Path(os.getenv("WORKSPACE_CONFIG_PATH", str(default_path)))
+        if not workspace_path.exists():
+            return WorkspaceConfig()
+        with workspace_path.open("r", encoding="utf-8") as stream:
+            return WorkspaceConfig.model_validate(yaml.safe_load(stream) or {})
 
     def get(self, key: str, default: Any = None) -> Any:
         """

@@ -1,0 +1,74 @@
+azure:
+  tenant_id: "${AZURE_TENANT_ID:}"
+  subscription_ids:
+    - "${AZURE_SUBSCRIPTION_IDS:}"
+  use_managed_identity: true
+  client_id: "${AZURE_CLIENT_ID:}"
+  client_secret: "${AZURE_CLIENT_SECRET:}"
+
+database:
+  host: "${DB_HOST:postgres}"
+  port: 5432
+  database: "${POSTGRES_DB:azure_cost}"
+  username: "${POSTGRES_USER:cost_monitor}"
+  password: "${POSTGRES_PASSWORD}"
+  pool_size: 10
+  max_overflow: 20
+  echo_sql: false
+
+api:
+  title: "Azure Cost Monitoring"
+  version: "2.0.0"
+  description: "Azure cost monitoring, alerting, forecasting, and recommendations"
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  cors_origins: []
+  rate_limit:
+    enabled: true
+    requests_per_minute: 120
+
+monitoring:
+  collection_intervals:
+    cost_data: "0 * * * *"
+    budget_data: "0 0 * * *"
+    usage_data: "0 */6 * * *"
+  retention:
+    raw_data_days: 90
+    aggregated_data_days: 730
+  anomaly_detection:
+    enabled: true
+
+alerting:
+  enabled: true
+  default_thresholds:
+    budget_warning: 0.75
+    budget_critical: 0.90
+    budget_exceeded: 1.0
+  deduplication_window_minutes: 60
+  escalation_timeout_minutes: 30
+  notification_channels: {}
+
+recommendations:
+  enabled: true
+  analysis_schedule: "0 3 * * 0"
+  lookback_days: 30
+  minimum_savings_threshold: 10.0
+  confidence_threshold: 0.70
+  analyzers: {}
+
+logging:
+  level: "INFO"
+  format: "json"
+  output: "console"
+
+security:
+  secret_key: "${SECRET_KEY}"
+  use_key_vault: false
+
+features:
+  enable_ml_anomaly_detection: true
+  enable_forecasting: true
+  enable_auto_remediation: false
+  enable_recommendation_tracking: true
+  enable_savings_reporting: true

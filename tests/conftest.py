@@ -13,7 +13,8 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import BigInteger, create_engine
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
 
 # Force SQLite for tests (before any config loading)
@@ -31,6 +32,12 @@ from src.models import (
     CostRecord,
     ResourceMetadata,
 )
+
+
+@compiles(BigInteger, "sqlite")
+def compile_big_integer_for_sqlite(type_, compiler, **kwargs):
+    """SQLite autoincrements only columns declared exactly as INTEGER."""
+    return "INTEGER"
 
 
 # =========================================================================

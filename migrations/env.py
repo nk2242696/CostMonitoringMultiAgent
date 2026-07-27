@@ -26,7 +26,9 @@ if config.config_file_name is not None:
 
 # Get database URL from app config
 app_config = get_config()
-config.set_main_option("sqlalchemy.url", app_config.database.url)
+# ConfigParser treats percent signs as interpolation markers. URL-encoded
+# credentials therefore need percent signs escaped before Alembic stores them.
+config.set_main_option("sqlalchemy.url", app_config.database.url.replace("%", "%%"))
 
 # Add your model's MetaData object here for 'autogenerate' support
 target_metadata = Base.metadata

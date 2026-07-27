@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommendation Action</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+        .header { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); padding: 20px 32px; color: #fff; }
+        .header h1 { font-size: 22px; font-weight: 600; }
+        .header .subtitle { color: #a8b2d1; font-size: 13px; margin-top: 4px; }
+        .header a { color: #64ffda; text-decoration: none; }
+
+        .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+
+        .summary-card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .summary-card h2 { font-size: 18px; margin-bottom: 12px; }
+        .summary-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px; }
+        .summary-item { flex: 1; min-width: 140px; }
+        .summary-item .label { font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-item .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+        .summary-item .value.green { color: #2d6a4f; }
+        .summary-item .value.red { color: #e76f51; }
+        .summary-item .value.blue { color: #1d3557; }
+
+        .progress-bar-container { margin-top: 16px; }
+        .progress-bar { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .progress-bar .fill { height: 100%; background: linear-gradient(90deg, #2d6a4f, #52b788); border-radius: 4px; transition: width 0.5s; }
+        .progress-text { font-size: 12px; color: #6c757d; margin-top: 4px; }
+
+        .step-card { background: #fff; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+        .step-header { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; user-select: none; }
+        .step-header:hover { background: #f8f9fa; }
+        .step-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+        .step-num.pending { background: #e9ecef; color: #6c757d; }
+        .step-num.completed { background: #d8f3dc; color: #2d6a4f; }
+        .step-num.failed { background: #f8d7da; color: #e76f51; }
+        .step-num.reverted { background: #fff3cd; color: #856404; }
+        .step-title { font-weight: 600; font-size: 15px; flex: 1; }
+        .step-badge { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 500; }
+        .step-badge.risk-none { background: #d8f3dc; color: #2d6a4f; }
+        .step-badge.risk-low { background: #d8f3dc; color: #2d6a4f; }
+        .step-badge.risk-medium { background: #fff3cd; color: #856404; }
+        .step-badge.risk-high { background: #f8d7da; color: #e76f51; }
+        .step-badge.time { background: #e8f4fd; color: #1d3557; }
+        .step-status { font-size: 18px; }
+        .step-chevron { font-size: 18px; color: #adb5bd; transition: transform 0.2s; }
+        .step-card.open .step-chevron { transform: rotate(90deg); }
+
+        .step-body { display: none; padding: 0 20px 20px 64px; }
+        .step-card.open .step-body { display: block; }
+
+        .step-desc { font-size: 14px; color: #495057; line-height: 1.6; margin-bottom: 16px; }
+
+        .cmd-block { background: #1e1e2e; border-radius: 8px; padding: 16px; margin-bottom: 12px; position: relative; }
+        .cmd-label { font-size: 11px; color: #a8b2d1; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }
+        .cmd-input { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 13px; color: #cdd6f4; background: #11111b; border: 1px solid #45475a; border-radius: 6px; padding: 12px; width: 100%; resize: vertical; min-height: 44px; line-height: 1.5; outline: none; }
+        .cmd-input:focus { border-color: #64ffda; box-shadow: 0 0 0 2px rgba(100,255,218,0.15); }
+        .cmd-toolbar { display: flex; gap: 8px; margin-top: 8px; }
+        .cmd-copy { background: #313244; border: none; color: #a8b2d1; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .cmd-copy:hover { background: #45475a; color: #fff; }
+        .cmd-reset { background: #313244; border: none; color: #f38ba8; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .cmd-reset:hover { background: #45475a; }
+
+        .terminal { background: #11111b; border-radius: 8px; margin-top: 12px; overflow: hidden; display: none; }
+        .terminal.show { display: block; }
+        .terminal-bar { background: #1e1e2e; padding: 8px 14px; display: flex; align-items: center; gap: 8px; }
+        .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .terminal-dot.red { background: #e76f51; }
+        .terminal-dot.yellow { background: #e9c46a; }
+        .terminal-dot.green { background: #52b788; }
+        .terminal-title { font-size: 11px; color: #6c757d; margin-left: 8px; font-family: monospace; }
+        .terminal-status { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 3px; }
+        .terminal-status.running { background: #1d3557; color: #64ffda; }
+        .terminal-status.success { background: #2d6a4f; color: #d8f3dc; }
+        .terminal-status.error { background: #e76f51; color: #fff; }
+        .terminal-output { padding: 14px; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: #cdd6f4; white-space: pre-wrap; max-height: 350px; overflow-y: auto; line-height: 1.6; }
+
+        .portal-path { background: #f0f4ff; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #457b9d; margin-bottom: 16px; }
+        .portal-path strong { color: #1d3557; }
+
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+        .btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-execute { background: #2d6a4f; color: #fff; }
+        .btn-execute:hover:not(:disabled) { background: #1b4332; }
+        .btn-preview { background: #e9ecef; color: #495057; }
+        .btn-preview:hover:not(:disabled) { background: #dee2e6; }
+        .btn-revert { background: #e76f51; color: #fff; }
+        .btn-revert:hover:not(:disabled) { background: #d64933; }
+
+        .confirm-box { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin-top: 12px; display: none; }
+        .confirm-box.show { display: block; }
+        .confirm-box p { font-size: 14px; margin-bottom: 12px; }
+
+        .output-panel { display: none; }
+        .output-header { display: none; }
+        .output-body { display: none; }
+
+        .rollback-info { margin-top: 12px; padding: 12px 16px; background: #f0f4ff; border-radius: 8px; font-size: 13px; }
+        .rollback-info strong { color: #1d3557; }
+
+        @media (max-width: 768px) {
+            .summary-row { flex-direction: column; }
+            .step-body { padding-left: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="recTitle">Loading...</h1>
+        <div class="subtitle" id="recSubtitle"></div>
+    </div>
+
+    <div class="container">
+        <div class="summary-card">
+            <h2>Overview</h2>
+            <div class="summary-row">
+                <div class="summary-item">
+                    <div class="label">Current Cost</div>
+                    <div class="value red" id="currentCost">-</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Potential Savings</div>
+                    <div class="value green" id="potentialSavings">-</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Progress</div>
+                    <div class="value blue" id="progressPct">0%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Status</div>
+                    <div class="value" id="recStatus">-</div>
+                </div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar"><div class="fill" id="progressFill" style="width:0%"></div></div>
+                <div class="progress-text" id="progressText">0 of 0 steps completed</div>
+            </div>
+        </div>
+
+        <div id="subscriptionInfo" style="display:none" class="summary-card">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div style="font-size:13px;color:#6c757d">Subscription:</div>
+                <code id="subIdDisplay" style="font-size:13px;background:#f0f2f5;padding:4px 10px;border-radius:4px"></code>
+                <button class="btn btn-preview" style="padding:5px 12px;font-size:12px" onclick="switchSubscription()">Switch az CLI to this subscription</button>
+                <span id="subSwitchStatus" style="font-size:12px;color:#52b788"></span>
+                <button class="btn btn-execute" style="padding:5px 14px;font-size:12px;background:#1d3557" onclick="runDiagnostics()">🔍 Diagnose Resource (fetch real metrics)</button>
+            </div>
+        </div>
+
+        <div id="diagnosticsPanel" style="display:none" class="summary-card">
+            <h2 style="margin-bottom:12px">🔍 Resource Diagnostic Report</h2>
+            <div id="diagLoading" style="color:#6c757d;font-size:13px">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:20px;height:20px;border:3px solid #e0e0e0;border-top:3px solid #1d3557;border-radius:50%;animation:spin 1s linear infinite"></div>
+                    Querying Azure Monitor for real utilization metrics... (this takes 30-60s)
+                </div>
+                <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+            </div>
+            <div id="diagResult" style="display:none">
+                <!-- Score cards row -->
+                <div id="diagScores" style="display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap"></div>
+                <!-- Verdict banner -->
+                <div id="diagVerdict" style="padding:16px 20px;border-radius:10px;margin-bottom:16px;font-size:15px;font-weight:600;line-height:1.6"></div>
+                <!-- Improvement areas -->
+                <div id="diagImprovements" style="margin-bottom:16px"></div>
+                <!-- Evidence report -->
+                <pre id="diagReport" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;padding:16px 20px;font-family:'Consolas','Monaco',monospace;font-size:12.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word;max-height:600px;overflow-y:auto;color:#2d3436"></pre>
+                <!-- Collapsible CLI commands -->
+                <details style="margin-top:12px">
+                    <summary style="cursor:pointer;font-size:12px;color:#6c757d;user-select:none">🔧 Technical: CLI commands used (click to expand)</summary>
+                    <pre id="diagCommands" style="background:#1a1a2e;color:#a0ffa0;border-radius:8px;padding:14px 18px;font-size:11.5px;line-height:1.6;margin-top:8px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto"></pre>
+                </details>
+            </div>
+        </div>
+
+        <div id="stepsContainer"></div>
+    </div>
+
+    <script>
+        // Auto-detect API base: if accessed via Nginx (port 3001), use /chat-api prefix
+        const isNginx = window.location.port === '3001' || window.location.pathname.startsWith('/chat-api/');
+        const API_PREFIX = isNginx ? '/chat-api' : '';
+        const API = API_PREFIX + '/api/v1/recommendations';
+        const recId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
+        let currentSubscription = '';
+
+        // Safe JSON parser — handles HTML error pages from Nginx when API is down
+        async function safeJson(res) {
+            const text = await res.text();
+            if (text.trim().startsWith('<')) {
+                throw new Error('API server is not responding (got HTML instead of JSON). The backend may be restarting — try again in a few seconds.');
+            }
+            try { return JSON.parse(text); }
+            catch (e) { throw new Error(`Invalid response: ${text.substring(0, 200)}`); }
+        }
+
+        async function loadProgress() {
+            try {
+            const res = await fetch(`${API}/${recId}/progress`);
+            if (!res.ok) { document.getElementById('recTitle').textContent = 'Recommendation not found'; return; }
+            const data = await safeJson(res);
+
+            document.getElementById('recTitle').textContent = data.title;
+            document.getElementById('recSubtitle').innerHTML = `${data.service || ''} &middot; <a href="${API}/${recId}/progress" target="_blank">View API</a>`;
+            document.getElementById('currentCost').textContent = data.current_cost ? `$${data.current_cost.toLocaleString()}/mo` : '-';
+            document.getElementById('potentialSavings').textContent = `$${data.potential_savings?.toLocaleString()}/mo (${data.savings_percentage || 0}%)`;
+            document.getElementById('progressPct').textContent = `${data.progress_pct}%`;
+            document.getElementById('recStatus').textContent = data.status.toUpperCase();
+            document.getElementById('progressFill').style.width = `${data.progress_pct}%`;
+            document.getElementById('progressText').textContent = `${data.steps_completed} of ${data.steps_total} steps completed`;
+
+            // Show subscription context
+            if (data.subscription_id) {
+                currentSubscription = data.subscription_id;
+                document.getElementById('subscriptionInfo').style.display = 'block';
+                document.getElementById('subIdDisplay').textContent = data.subscription_id;
+            }
+            document.getElementById('progressPct').textContent = `${data.progress_pct}%`;
+            document.getElementById('recStatus').textContent = data.status.toUpperCase();
+            document.getElementById('progressFill').style.width = `${data.progress_pct}%`;
+            document.getElementById('progressText').textContent = `${data.steps_completed} of ${data.steps_total} steps completed`;
+
+            renderSteps(data.steps);
+            } catch (err) {
+                document.getElementById('recTitle').textContent = '⚠️ API Unavailable';
+                document.getElementById('recSubtitle').innerHTML = `<span style="color:#e76f51">${err.message}</span><br>The backend may be restarting — refresh the page in a few seconds.`;
+            }
+        }
+
+        function renderSteps(steps) {
+            const container = document.getElementById('stepsContainer');
+            container.innerHTML = '';
+            steps.forEach((step, idx) => {
+                const status = step.status || 'not_started';
+                const risk = step.risk || 'none';
+                const statusIcon = status === 'completed' ? '✅' : status === 'failed' ? '❌' : status === 'reverted' ? '↩️' : '○';
+                const hasCmd = step.azure_cli && step.azure_cli !== 'null';
+                const card = document.createElement('div');
+                card.className = `step-card ${idx === 0 ? 'open' : ''}`;
+                card.innerHTML = `
+                    <div class="step-header" onclick="this.parentElement.classList.toggle('open')">
+                        <div class="step-num ${status}">${step.step_number}</div>
+                        <div class="step-title">${step.title || ''}</div>
+                        <span class="step-badge time">${step.estimated_time || ''}</span>
+                        <span class="step-badge risk-${risk}">Risk: ${risk}</span>
+                        <span class="step-status">${statusIcon}</span>
+                        <span class="step-chevron">›</span>
+                    </div>
+                    <div class="step-body">
+                        ${hasCmd ? `
+                            <div class="cmd-block">
+                                <div class="cmd-label">Azure CLI Command <span style="color:#6c757d;font-size:10px;text-transform:none">(editable — modify before running)</span></div>
+                                <textarea class="cmd-input" id="cmd-${step.step_number}" rows="${step.azure_cli.length > 120 ? 3 : 2}" spellcheck="false">${escapeHtml(step.azure_cli)}</textarea>
+                                <div class="cmd-toolbar">
+                                    <button class="cmd-copy" onclick="copyCmd(${step.step_number})">📋 Copy</button>
+                                    <button class="cmd-reset" onclick="resetCmd(${step.step_number}, '${escapeAttr(step.azure_cli)}')">↩ Reset</button>
+                                </div>
+                            </div>
+                        ` : `<p class="step-desc" style="color:#6c757d;padding:8px 0">This step is portal-only (no CLI command).</p>`}
+
+                        ${step.portal_path ? `<div class="portal-path"><strong>Portal:</strong> ${step.portal_path}</div>` : ''}
+
+                        <div class="btn-row">
+                            ${hasCmd ? `
+                                <button class="btn btn-execute" onclick="runCommand(${step.step_number})" id="exec-btn-${step.step_number}" ${status === 'completed' ? 'disabled' : ''}>▶ Run Command</button>
+                            ` : ''}
+                            ${status === 'completed' && hasCmd ? `
+                                <button class="btn btn-revert" onclick="showRevertConfirm(${step.step_number})">↩ Revert</button>
+                            ` : ''}
+                        </div>
+
+                        <div class="confirm-box" id="revert-confirm-${step.step_number}">
+                            <p>↩️ <strong>Revert this step?</strong> This will run the rollback command.</p>
+                            <div class="btn-row">
+                                <button class="btn btn-revert" onclick="revertStep(${step.step_number})">Yes, Revert</button>
+                                <button class="btn btn-preview" onclick="hideRevertConfirm(${step.step_number})">Cancel</button>
+                            </div>
+                        </div>
+
+                        <div class="terminal" id="term-${step.step_number}">
+                            <div class="terminal-bar">
+                                <div class="terminal-dot red"></div>
+                                <div class="terminal-dot yellow"></div>
+                                <div class="terminal-dot green"></div>
+                                <span class="terminal-title">Terminal</span>
+                                <span class="terminal-status" id="term-status-${step.step_number}"></span>
+                            </div>
+                            <div class="terminal-output" id="term-output-${step.step_number}"></div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            return text.replace(/'/g, "\\'").replace(/\n/g, "\\n");
+        }
+
+        function copyCmd(stepNum) {
+            const el = document.getElementById(`cmd-${stepNum}`);
+            navigator.clipboard.writeText(el.value || el.textContent);
+        }
+
+        function resetCmd(stepNum, original) {
+            document.getElementById(`cmd-${stepNum}`).value = original.replace(/\\n/g, "\n");
+        }
+
+        function showRevertConfirm(stepNum) { document.getElementById(`revert-confirm-${stepNum}`).classList.add('show'); }
+        function hideRevertConfirm(stepNum) { document.getElementById(`revert-confirm-${stepNum}`).classList.remove('show'); }
+
+        async function runCommand(stepNum) {
+            const cmdInput = document.getElementById(`cmd-${stepNum}`);
+            const command = cmdInput.value.trim();
+            if (!command) return;
+
+            const btn = document.getElementById(`exec-btn-${stepNum}`);
+            btn.disabled = true;
+            btn.textContent = '⏳ Running...';
+
+            const term = document.getElementById(`term-${stepNum}`);
+            const termStatus = document.getElementById(`term-status-${stepNum}`);
+            const termOutput = document.getElementById(`term-output-${stepNum}`);
+
+            term.classList.add('show');
+            termStatus.className = 'terminal-status running';
+            termStatus.textContent = 'RUNNING';
+            termOutput.textContent = `$ ${command}\n\nExecuting...\n`;
+
+            try {
+                const res = await fetch(`${API}/${recId}/steps/${stepNum}/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirm: true, executed_by: 'user', custom_command: command })
+                });
+                const data = await safeJson(res);
+                const result = data.detail || data;
+
+                if (result.success) {
+                    termStatus.className = 'terminal-status success';
+                    termStatus.textContent = `✓ OK (${result.elapsed_seconds}s)`;
+                    termOutput.textContent = `$ ${command}\n\n${result.output || '(completed with no output)'}\n\n--- Execution successful (${result.elapsed_seconds}s) ---\n--- ${result.steps_completed}/${result.steps_total} steps completed ---`;
+                    btn.textContent = '✅ Done';
+                    // Update progress bar without re-rendering steps (preserves terminal output)
+                    updateProgressOnly();
+                } else {
+                    termStatus.className = 'terminal-status error';
+                    termStatus.textContent = 'FAILED';
+                    const errMsg = result.output || result.error || result.message || JSON.stringify(result, null, 2);
+
+                    // Add helpful context for common Azure errors
+                    let hint = '';
+                    if (errMsg.includes('ResourceNotFound')) {
+                        hint = '\n\n💡 HINT: This resource no longer exists in Azure. It may have been deleted,\nrenamed, or moved since the cost data was collected. This recommendation\ncan be dismissed — the cost is already eliminated.\n\nClick the command textarea above to modify the resource name if it was renamed.';
+                    } else if (errMsg.includes('AuthorizationFailed') || errMsg.includes('AuthenticationFailed')) {
+                        hint = '\n\n💡 HINT: You do not have permission to perform this action.\nAsk your subscription Owner to grant you Contributor role.';
+                    } else if (errMsg.includes('SubscriptionNotFound')) {
+                        hint = '\n\n💡 HINT: Click "Switch az CLI to this subscription" button above first.';
+                    }
+
+                    termOutput.textContent = `$ ${command}\n\n${errMsg}${hint}`;
+                    btn.disabled = false;
+                    btn.textContent = '▶ Retry';
+                }
+            } catch (err) {
+                termStatus.className = 'terminal-status error';
+                termStatus.textContent = 'ERROR';
+                termOutput.textContent = `$ ${command}\n\nNetwork Error: ${err.message}`;
+                btn.disabled = false;
+                btn.textContent = '▶ Retry';
+            }
+        }
+
+        async function revertStep(stepNum) {
+            hideRevertConfirm(stepNum);
+            const term = document.getElementById(`term-${stepNum}`);
+            const termStatus = document.getElementById(`term-status-${stepNum}`);
+            const termOutput = document.getElementById(`term-output-${stepNum}`);
+
+            term.classList.add('show');
+            termStatus.className = 'terminal-status running';
+            termStatus.textContent = 'REVERTING';
+            termOutput.textContent = 'Running rollback command...\n';
+
+            try {
+                const res = await fetch(`${API}/${recId}/steps/${stepNum}/revert`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirm: true })
+                });
+                const data = await safeJson(res);
+                const result = data.detail || data;
+
+                if (result.success) {
+                    termStatus.className = 'terminal-status success';
+                    termStatus.textContent = `✓ REVERTED (${result.elapsed_seconds}s)`;
+                    termOutput.textContent = `$ ${result.command}\n\n${result.output || '(reverted successfully)'}\n\n--- Rollback completed ---`;
+                    updateProgressOnly();
+                } else {
+                    termStatus.className = 'terminal-status error';
+                    termStatus.textContent = 'FAILED';
+                    const errMsg = result.output || result.error || JSON.stringify(result, null, 2);
+                    termOutput.textContent = `Rollback failed:\n${errMsg}`;
+                }
+            } catch (err) {
+                termStatus.className = 'terminal-status error';
+                termStatus.textContent = 'ERROR';
+                termOutput.textContent = `Network Error: ${err.message}`;
+            }
+        }
+
+        function scoreColor(score) {
+            if (score >= 60) return '#27ae60';
+            if (score >= 30) return '#f39c12';
+            if (score > 0) return '#e67e22';
+            return '#e74c3c';
+        }
+        function savingsColor(pct) {
+            if (pct >= 70) return '#e74c3c';
+            if (pct >= 40) return '#e67e22';
+            if (pct >= 20) return '#f39c12';
+            return '#27ae60';
+        }
+
+        async function runDiagnostics() {
+            const panel = document.getElementById('diagnosticsPanel');
+            const loading = document.getElementById('diagLoading');
+            const result = document.getElementById('diagResult');
+            const verdict = document.getElementById('diagVerdict');
+            const report = document.getElementById('diagReport');
+            const cmds = document.getElementById('diagCommands');
+            const scores = document.getElementById('diagScores');
+            const imps = document.getElementById('diagImprovements');
+
+            panel.style.display = 'block';
+            loading.style.display = 'block';
+            result.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API}/${recId}/diagnose`);
+                const data = await safeJson(res);
+
+                loading.style.display = 'none';
+                result.style.display = 'block';
+
+                if (data.success) {
+                    const summary = data.evidence_summary || '';
+                    const analysis = data.analysis || {};
+                    const util = analysis.utilization_score ?? '-';
+                    const savPct = analysis.savings_potential_pct ?? '-';
+                    const areas = analysis.improvement_areas || [];
+                    const autoPause = analysis.auto_pause_enabled;
+
+                    // Score cards
+                    const utilColor = typeof util === 'number' ? scoreColor(util) : '#6c757d';
+                    const savColor = typeof savPct === 'number' ? savingsColor(savPct) : '#6c757d';
+                    const apColor = autoPause === true ? '#27ae60' : autoPause === false ? '#e74c3c' : '#6c757d';
+                    const apText = autoPause === true ? 'Enabled' : autoPause === false ? 'Not Enabled' : 'Unknown';
+
+                    scores.innerHTML = `
+                        <div style="flex:1;min-width:140px;background:linear-gradient(135deg,#f8f9fa,#fff);border:2px solid ${utilColor};border-radius:12px;padding:16px;text-align:center">
+                            <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:1px">Utilization</div>
+                            <div style="font-size:32px;font-weight:700;color:${utilColor}">${util}%</div>
+                            <div style="font-size:10px;color:#999">from real metrics</div>
+                        </div>
+                        <div style="flex:1;min-width:140px;background:linear-gradient(135deg,#f8f9fa,#fff);border:2px solid ${savColor};border-radius:12px;padding:16px;text-align:center">
+                            <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:1px">Savings Potential</div>
+                            <div style="font-size:32px;font-weight:700;color:${savColor}">${savPct}%</div>
+                            <div style="font-size:10px;color:#999">calculated from gap</div>
+                        </div>
+                        <div style="flex:1;min-width:140px;background:linear-gradient(135deg,#f8f9fa,#fff);border:2px solid ${apColor};border-radius:12px;padding:16px;text-align:center">
+                            <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:1px">Auto-Pause</div>
+                            <div style="font-size:22px;font-weight:700;color:${apColor}">${apText}</div>
+                            <div style="font-size:10px;color:#999">idle cost protection</div>
+                        </div>
+                        <div style="flex:1;min-width:140px;background:linear-gradient(135deg,#f8f9fa,#fff);border:2px solid #495057;border-radius:12px;padding:16px;text-align:center">
+                            <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:1px">Issues Found</div>
+                            <div style="font-size:32px;font-weight:700;color:${areas.length > 0 ? '#e67e22' : '#27ae60'}">${areas.length}</div>
+                            <div style="font-size:10px;color:#999">improvement areas</div>
+                        </div>
+                    `;
+
+                    // Verdict banner
+                    const firstLine = summary.split('\n')[0] || '';
+                    if (firstLine.includes('IDLE') || firstLine.includes('NEAR-IDLE')) {
+                        verdict.style.background = 'linear-gradient(135deg, #fff5f5, #ffe0e0)';
+                        verdict.style.border = '2px solid #e74c3c';
+                        verdict.style.color = '#c0392b';
+                    } else if (firstLine.includes('UNDERUTILIZED')) {
+                        verdict.style.background = 'linear-gradient(135deg, #fff8e1, #ffe0b2)';
+                        verdict.style.border = '2px solid #f39c12';
+                        verdict.style.color = '#e67e22';
+                    } else if (firstLine.includes('MODERATELY') || firstLine.includes('WELL')) {
+                        verdict.style.background = 'linear-gradient(135deg, #e8f5e9, #c8e6c9)';
+                        verdict.style.border = '2px solid #27ae60';
+                        verdict.style.color = '#27ae60';
+                    } else if (firstLine.includes('HEAVILY UTILIZED')) {
+                        verdict.style.background = 'linear-gradient(135deg, #e8f5e9, #a5d6a7)';
+                        verdict.style.border = '2px solid #2e7d32';
+                        verdict.style.color = '#2e7d32';
+                    } else {
+                        verdict.style.background = '#f0f2f5';
+                        verdict.style.border = '1px solid #dee2e6';
+                        verdict.style.color = '#495057';
+                    }
+                    verdict.textContent = firstLine;
+
+                    // Improvement areas
+                    if (areas.length > 0) {
+                        const impactColors = {critical:'#e74c3c',high:'#e67e22',medium:'#f39c12',low:'#6c757d'};
+                        imps.innerHTML = '<h3 style="margin:0 0 8px 0;font-size:14px;color:#495057">🎯 Improvement Areas</h3>' +
+                            areas.map(a => `<div style="border-left:4px solid ${impactColors[a.impact]||'#ccc'};padding:8px 14px;margin-bottom:8px;background:#f8f9fa;border-radius:0 8px 8px 0">
+                                <strong style="color:${impactColors[a.impact]||'#333'}">[${(a.impact||'').toUpperCase()}] ${a.area}</strong>
+                                <div style="font-size:12px;color:#555;margin:4px 0">${a.detail}</div>
+                                <div style="font-size:12px;color:#1d3557;font-weight:500">→ ${a.action}</div>
+                            </div>`).join('');
+                    } else {
+                        imps.innerHTML = '';
+                    }
+
+                    // Full report (skip the verdict line and separator)
+                    const reportLines = summary.split('\n').slice(2).join('\n');
+                    report.textContent = reportLines;
+
+                    // CLI commands
+                    const cmdText = (data.commands_used || []).map(c => `$ ${c}`).join('\n\n');
+                    cmds.textContent = cmdText || '(no commands)';
+                } else {
+                    scores.innerHTML = '';
+                    imps.innerHTML = '';
+                    verdict.style.background = '#fff5f5';
+                    verdict.style.border = '2px solid #e74c3c';
+                    verdict.style.color = '#c0392b';
+                    verdict.textContent = '❌ Diagnostics Failed';
+                    report.textContent = data.error || data.hint || JSON.stringify(data, null, 2);
+                    cmds.textContent = '';
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                result.style.display = 'block';
+                scores.innerHTML = '';
+                imps.innerHTML = '';
+                verdict.style.background = '#fff5f5';
+                verdict.style.border = '2px solid #e74c3c';
+                verdict.style.color = '#c0392b';
+                verdict.textContent = '❌ Error';
+                report.textContent = err.message;
+                cmds.textContent = '';
+            }
+        }
+
+        async function updateProgressOnly() {
+            // Update progress bar and stats without re-rendering steps (preserves terminal output)
+            try {
+                const res = await fetch(`${API}/${recId}/progress`);
+                if (!res.ok) return;
+                const data = await safeJson(res);
+                document.getElementById('progressPct').textContent = `${data.progress_pct}%`;
+                document.getElementById('recStatus').textContent = data.status.toUpperCase();
+                document.getElementById('progressFill').style.width = `${data.progress_pct}%`;
+                document.getElementById('progressText').textContent = `${data.steps_completed} of ${data.steps_total} steps completed`;
+            } catch (e) { /* ignore */ }
+        }
+
+        async function switchSubscription() {
+            if (!currentSubscription) return;
+            const statusEl = document.getElementById('subSwitchStatus');
+            statusEl.textContent = 'Switching...';
+            statusEl.style.color = '#6c757d';
+
+            try {
+                // Use a dummy step execute with the subscription switch command
+                const res = await fetch(`${API}/${recId}/steps/1/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        confirm: true,
+                        custom_command: `az account set --subscription ${currentSubscription}`
+                    })
+                });
+                const data = await safeJson(res);
+                const result = data.detail || data;
+                if (result.success) {
+                    statusEl.textContent = '✅ Switched!';
+                    statusEl.style.color = '#2d6a4f';
+                } else {
+                    statusEl.textContent = '❌ ' + (result.error || 'Failed');
+                    statusEl.style.color = '#e76f51';
+                }
+            } catch (err) {
+                statusEl.textContent = '❌ ' + err.message;
+                statusEl.style.color = '#e76f51';
+            }
+        }
+
+        loadProgress();
+    </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+{
+  "annotations": { "list": [] },
+  "description": "Top-impact architecture reviews with detailed implementation plans",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "style": "light",
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "<div style=\"display:flex;align-items:center;gap:16px;padding:8px 16px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:8px;margin:-4px 0\">\n  <div style=\"font-size:26px;font-weight:700;color:#ffffff\">Architecture Reviews</div>\n  <div style=\"font-size:13px;color:#a8b2d1;border-left:2px solid #a8b2d1;padding-left:16px\">Top-impact services reviewed by <strong style=\"color:#64ffda\">GPT-4o</strong> · Root cause analysis · Azure CLI commands · Rollback plans</div>\n</div>",
+        "mode": "html"
+      },
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "#1d3557", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "#1d3557", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 2 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) as \"Reviews Completed\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "title": "",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "#2d6a4f", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "#2d6a4f", "value": null }] }, "unit": "currencyUSD" }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 2 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(potential_savings), 0) as \"Identified Savings\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "title": "",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "#e76f51", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "#e76f51", "value": null }] }, "unit": "currencyUSD" }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 2 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(current_cost), 0) as \"Current Monthly Cost\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "title": "",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "#6a4c93", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "#6a4c93", "value": null }] }, "unit": "percent" }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 2 },
+      "id": 9,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name", "wideLayout": true },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(AVG(savings_percentage)::numeric, 1) as \"Avg Reduction\" FROM ai_recommendations WHERE recommendation_type = 'architecture_review' AND savings_percentage IS NOT NULL AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')));" }],
+      "title": "",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 60,
+      "title": "ARCHITECTURE REVIEWS  ·  Click the description cell → eye icon to expand the full analysis",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left", "cellOptions": { "type": "auto" }, "inspect": true, "filterable": true, "minWidth": 50 },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Service" },
+            "properties": [
+              { "id": "custom.width", "value": 210 },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "color", "value": { "fixedColor": "#1d3557", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Priority" },
+            "properties": [
+              { "id": "custom.width", "value": 100 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "mappings", "value": [{ "options": { "high": { "color": "#e76f51", "index": 0, "text": "● HIGH" }, "medium": { "color": "#e9c46a", "index": 1, "text": "● MEDIUM" }, "low": { "color": "#52b788", "index": 2, "text": "● LOW" } }, "type": "value" }] }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Current Cost" },
+            "properties": [
+              { "id": "custom.width", "value": 130 },
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "#52b788", "value": null }, { "color": "#e9c46a", "value": 5000 }, { "color": "#e76f51", "value": 20000 }] } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Savings/mo" },
+            "properties": [
+              { "id": "custom.width", "value": 140 },
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient", "valueDisplayMode": "text" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "#b7e4c7", "value": null }, { "color": "#52b788", "value": 1000 }, { "color": "#2d6a4f", "value": 10000 }] } },
+              { "id": "max", "value": 30000 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Savings %" },
+            "properties": [
+              { "id": "custom.width", "value": 100 },
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "basic", "valueDisplayMode": "text" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "#a2d2ff", "value": null }, { "color": "#457b9d", "value": 25 }, { "color": "#1d3557", "value": 50 }] } },
+              { "id": "max", "value": 80 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Effort" },
+            "properties": [
+              { "id": "custom.width", "value": 85 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              { "id": "mappings", "value": [{ "options": { "minutes": { "color": "#d8f3dc", "index": 0, "text": "⚡ Quick" }, "hours": { "color": "#fff3cd", "index": 1, "text": "🕐 Hours" }, "days": { "color": "#fde2cf", "index": 2, "text": "📅 Days" } }, "type": "value" }] }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Root Cause & Implementation Steps" },
+            "properties": [
+              { "id": "custom.minWidth", "value": 500 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 28, "w": 24, "x": 0, "y": 7 },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "Savings/mo", "reducer": ["sum"], "show": true },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Savings/mo" }]
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT \n  service_name as \"Service\",\n  priority as \"Priority\",\n  ROUND(current_cost::numeric, 0) as \"Current Cost\",\n  ROUND(potential_savings::numeric, 0) as \"Savings/mo\",\n  savings_percentage as \"Savings %\",\n  implementation_effort as \"Effort\",\n  description as \"Root Cause & Implementation Steps\"\nFROM ai_recommendations \nWHERE recommendation_type = 'architecture_review'\n  AND ('${subscription:raw}' = '$__all' OR service_name IN (SELECT DISTINCT service_name FROM cost_records WHERE subscription_id IN ('${subscription:raw}')))\nORDER BY potential_savings DESC;" }],
+      "title": "Architecture Reviews — Full Analysis & Implementation Plans",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["architecture", "ai", "gpt-4o"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+        "definition": "SELECT DISTINCT subscription_id FROM cost_records WHERE subscription_id IS NOT NULL ORDER BY subscription_id",
+        "includeAll": true,
+        "label": "Subscription",
+        "multi": true,
+        "name": "subscription",
+        "options": [],
+        "query": "SELECT DISTINCT subscription_id FROM cost_records WHERE subscription_id IS NOT NULL ORDER BY subscription_id",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Architecture Review Dashboard",
+  "uid": "architecture-reviews",
+  "version": 0,
+  "weekStart": ""
+}

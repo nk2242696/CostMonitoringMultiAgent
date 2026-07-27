@@ -1,0 +1,67 @@
+# SQLite Configuration for Testing (No Docker Required)
+# This is a lightweight alternative to PostgreSQL for development testing
+
+database:
+  host: "localhost"  # Not used for SQLite but required by config
+  port: 5432  # Not used for SQLite but required by config
+  database: "cost_monitoring.db"  # SQLite file path
+  username: "sqlite"  # Not used for SQLite but required by config
+  password: "sqlite"  # Not used for SQLite but required by config
+  pool_size: 1
+  max_overflow: 0
+  echo_sql: false
+
+# Redis configuration (can be disabled for SQLite testing)  
+redis:
+  url: "redis://localhost:6379/0"
+  max_connections: 10
+  socket_timeout: 5
+  socket_connect_timeout: 5
+
+# Celery configuration (can work with filesystem broker for testing)
+celery:
+  broker_url: "filesystem://"
+  result_backend: "file:///./celery_results"
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content: ["json"]
+  timezone: "UTC"
+  enable_utc: true
+
+# Azure configuration (use environment variables or dummy values for testing)
+azure:
+  tenant_id: "${AZURE_TENANT_ID:dummy-tenant-id}"
+  client_id: "${AZURE_CLIENT_ID:dummy-client-id}"
+  client_secret: "${AZURE_CLIENT_SECRET:dummy-secret}"
+  subscription_ids: 
+    - "${AZURE_SUBSCRIPTION_ID:dummy-subscription-id}"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "json"
+  include_request_id: true
+
+# Application settings
+app:
+  name: "Azure Cost Management System"
+  version: "0.1.0"
+  debug: true
+  
+# Monitoring settings
+monitoring:
+  collection_interval: 3600  # 1 hour
+  retention_days: 365
+  batch_size: 1000
+
+# Alerting settings  
+alerting:
+  enabled: true
+  channels: ["email", "webhook"]
+  default_threshold: 80
+
+# Recommendation settings
+recommendations:
+  enabled: true
+  refresh_interval: 86400  # 24 hours
+  min_savings_threshold: 10.0

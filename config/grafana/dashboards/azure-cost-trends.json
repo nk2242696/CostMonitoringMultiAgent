@@ -1,0 +1,1311 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Azure cost monitoring across subscriptions with service breakdowns and budget tracking",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "style": "light",
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": -1 },
+      "id": 200,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "<div style=\"display:flex;align-items:center;gap:16px;padding:8px 16px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:8px;margin:-4px 0\">\n  <div style=\"font-size:26px;font-weight:700;color:#ffffff\">Azure Cost Trends</div>\n  <div style=\"font-size:13px;color:#a8b2d1;border-left:2px solid #a8b2d1;padding-left:16px\">Real-time cost monitoring · Service breakdowns · Budget tracking · Powered by <strong style=\"color:#64ffda\">TimescaleDB + Prometheus</strong></div>\n</div>",
+        "mode": "html"
+      },
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50000
+              },
+              {
+                "color": "orange",
+                "value": 100000
+              },
+              {
+                "color": "red",
+                "value": 150000
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                    SELECT SUM(cost) as \"Total Cost This Month\"\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                      AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                      AND subscription_id = '$subscription';\n                "
+        }
+      ],
+      "title": "Total Cost (Current Month)",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": -20
+              },
+              {
+                "color": "yellow",
+                "value": -10
+              },
+              {
+                "color": "orange",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                    WITH current_month AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    previous_month AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')\n                          AND date < DATE_TRUNC('month', CURRENT_DATE)\n                          AND subscription_id = '$subscription'\n                    )\n                    SELECT \n                        CASE \n                            WHEN p.total > 0 THEN ((c.total - p.total) / p.total * 100)\n                            ELSE 0\n                        END as \"MoM Change %\"\n                    FROM current_month c, previous_month p;\n                "
+        }
+      ],
+      "title": "Month-over-Month Change",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "purple",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                    SELECT COUNT(DISTINCT service_name) as \"Active Services\"\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                      AND subscription_id = '$subscription';\n                "
+        }
+      ],
+      "title": "Active Services",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                    SELECT COUNT(DISTINCT subscription_id) as \"Active Subscriptions\"\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                      AND subscription_id = '$subscription';\n                "
+        }
+      ],
+      "title": "Active Subscriptions",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Cost (USD)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 80,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Sum",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "\n                SELECT \n                    DATE_TRUNC('day', date) as time,\n                    service_name as metric,\n                    SUM(cost) as value\n                FROM cost_records\n                WHERE date >= NOW() - INTERVAL '90 days'\n                  AND subscription_id = '$subscription'\n                GROUP BY DATE_TRUNC('day', date), service_name\n                ORDER BY time, service_name;\n            "
+        }
+      ],
+      "title": "Cost Breakdown by Service Over Time (Stacked Area Chart)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Historical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Forecast"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 18,
+        "x": 0,
+        "y": 14
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                -- Historical monthly costs (last 12 months)\n                WITH historical_months AS (\n                    SELECT \n                        DATE_TRUNC('month', date) as month,\n                        SUM(cost) as total_cost\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '11 months')\n                      AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                      AND subscription_id = '$subscription'\n                    GROUP BY DATE_TRUNC('month', date)\n                    ORDER BY month\n                ),\n                -- Calculate trend using linear regression\n                trend_calc AS (\n                    SELECT \n                        AVG(total_cost) as avg_cost,\n                        -- Better trend calculation: compare recent 3 months to previous 3 months\n                        CASE \n                            WHEN COUNT(*) >= 6 THEN\n                                (AVG(CASE WHEN month >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months') THEN total_cost END) - \n                                 AVG(CASE WHEN month < DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months') AND month >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '8 months') THEN total_cost END)) / 3\n                            ELSE 0\n                        END as monthly_change\n                    FROM historical_months\n                ),\n                -- Generate forecast for next 3 months\n                forecast_months AS (\n                    SELECT \n                        DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') + (n || ' months')::interval as month,\n                        GREATEST(0, (SELECT avg_cost + (monthly_change * (n + 1)) FROM trend_calc)) as total_cost\n                    FROM generate_series(0, 2) as n\n                )\n                -- Combine historical and forecast\n                SELECT month as time, total_cost as \"Historical\"\n                FROM historical_months\n                UNION ALL\n                SELECT month as time, total_cost as \"Forecast\"\n                FROM forecast_months\n                ORDER BY time;\n            "
+        }
+      ],
+      "title": "Multi-Month Cost Forecast",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latest Month"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Previous Month"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Change"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": -10000
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 5000
+                    },
+                    {
+                      "color": "red",
+                      "value": 10000
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MoM"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": -20
+                    },
+                    {
+                      "color": "light-green",
+                      "value": -10
+                    },
+                    {
+                      "color": "yellow",
+                      "value": -5
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0
+                    },
+                    {
+                      "color": "light-red",
+                      "value": 5
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": true,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "MoM"
+          }
+        ]
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                WITH current_month AS (\n                    SELECT \n                        subscription_id,\n                        service_name,\n                        resource_group,\n                        SUM(cost) as current_cost\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                      AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                      AND subscription_id = '$subscription'\n                    GROUP BY subscription_id, service_name, resource_group\n                ),\n                previous_month AS (\n                    SELECT \n                        subscription_id,\n                        service_name,\n                        resource_group,\n                        SUM(cost) as previous_cost\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')\n                      AND date < DATE_TRUNC('month', CURRENT_DATE)\n                      AND subscription_id = '$subscription'\n                    GROUP BY subscription_id, service_name, resource_group\n                )\n                SELECT \n                    COALESCE(c.resource_group, p.resource_group, 'Unknown') as \"TeamGroup\",\n                    COALESCE(c.service_name, p.service_name) as \"Service\",\n                    COALESCE(c.subscription_id, p.subscription_id) as \"Subscription\",\n                    ROUND(COALESCE(c.current_cost, 0)::numeric, 2) as \"Latest Month\",\n                    ROUND(COALESCE(p.previous_cost, 0)::numeric, 2) as \"Previous Month\",\n                    ROUND((COALESCE(c.current_cost, 0) - COALESCE(p.previous_cost, 0))::numeric, 2) as \"Change\",\n                    CASE \n                        WHEN COALESCE(p.previous_cost, 0) > 0 \n                        THEN ROUND(((COALESCE(c.current_cost, 0) - COALESCE(p.previous_cost, 0)) / p.previous_cost * 100)::numeric, 2)\n                        WHEN COALESCE(c.current_cost, 0) > 0\n                        THEN 100.00\n                        ELSE 0\n                    END as \"MoM\"\n                FROM current_month c\n                FULL OUTER JOIN previous_month p \n                    ON c.subscription_id = p.subscription_id \n                    AND c.service_name = p.service_name\n                    AND COALESCE(c.resource_group, '') = COALESCE(p.resource_group, '')\n                WHERE COALESCE(c.current_cost, 0) > 0 OR COALESCE(p.previous_cost, 0) > 0\n                ORDER BY ABS(COALESCE(c.current_cost, 0) - COALESCE(p.previous_cost, 0)) DESC;\n            "
+        }
+      ],
+      "title": "Detailed Cost Analysis by TeamGroup, Service & Subscription",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Current Month"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Previous Month"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Difference"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1000
+                    },
+                    {
+                      "color": "red",
+                      "value": 5000
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Change %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": -20
+                    },
+                    {
+                      "color": "yellow",
+                      "value": -10
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Change %"
+          }
+        ]
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "\n                WITH current_month AS (\n                    SELECT \n                        service_name,\n                        SUM(cost) as current_cost\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                      AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                      AND subscription_id = '$subscription'\n                    GROUP BY service_name\n                ),\n                previous_month AS (\n                    SELECT \n                        service_name,\n                        SUM(cost) as previous_cost\n                    FROM cost_records\n                    WHERE date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')\n                      AND date < DATE_TRUNC('month', CURRENT_DATE)\n                      AND subscription_id = '$subscription'\n                    GROUP BY service_name\n                )\n                SELECT \n                    COALESCE(c.service_name, p.service_name) as \"Service\",\n                    ROUND(COALESCE(c.current_cost, 0)::numeric, 2) as \"Current Month\",\n                    ROUND(COALESCE(p.previous_cost, 0)::numeric, 2) as \"Previous Month\",\n                    ROUND((COALESCE(c.current_cost, 0) - COALESCE(p.previous_cost, 0))::numeric, 2) as \"Difference\",\n                    CASE \n                        WHEN COALESCE(p.previous_cost, 0) > 0 \n                        THEN ROUND(((COALESCE(c.current_cost, 0) - COALESCE(p.previous_cost, 0)) / p.previous_cost * 100)::numeric, 1)\n                        ELSE 0\n                    END as \"Change %\"\n                FROM current_month c\n                FULL OUTER JOIN previous_month p ON c.service_name = p.service_name\n                WHERE COALESCE(c.current_cost, 0) > 0 OR COALESCE(p.previous_cost, 0) > 0\n                ORDER BY \"Change %\" DESC NULLS LAST;\n            "
+        }
+      ],
+      "title": "Month-over-Month Change by Service",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Over Budget"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Within Budget"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 11
+      },
+      "id": 100,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budget AS (\n                        SELECT SUM(budget_amount) as total\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        CASE \n                            WHEN c.total <= b.total THEN 1\n                            ELSE 0\n                        END as \"Budget Status\"\n                    FROM current_spend c, budget b;\n                ",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "cost"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "cost_records",
+          "timeColumn": "date",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Budget Status",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "orange",
+                "value": 90
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 6
+      },
+      "id": 101,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budget AS (\n                        SELECT SUM(budget_amount) as total\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        ROUND((c.total / NULLIF(b.total, 0) * 100)::numeric, 2) as \"Budget Used %\"\n                    FROM current_spend c, budget b;\n                ",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "cost"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "cost_records",
+          "timeColumn": "date",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Budget Utilization (Monthly)",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "PCC52D03280B7034C"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Over/Under"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used %"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "max",
+                "value": 150
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 75
+                    },
+                    {
+                      "color": "orange",
+                      "value": 90
+                    },
+                    {
+                      "color": "red",
+                      "value": 100
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 16,
+        "x": 8,
+        "y": 6
+      },
+      "id": 102,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "PCC52D03280B7034C"
+          },
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "\n                    WITH current_spend AS (\n                        SELECT SUM(cost) as total\n                        FROM cost_records\n                        WHERE date >= DATE_TRUNC('month', CURRENT_DATE)\n                          AND date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')\n                          AND subscription_id = '$subscription'\n                    ),\n                    budgets AS (\n                        SELECT \n                            name,\n                            budget_amount,\n                            time_period\n                        FROM cost_budgets\n                        WHERE is_active = true\n                          AND time_period = 'monthly'\n                    )\n                    SELECT \n                        b.name as \"Budget Name\",\n                        ROUND(b.budget_amount::numeric, 2) as \"Budget Amount\",\n                        ROUND(c.total::numeric, 2) as \"Actual Spend\",\n                        ROUND((c.total / NULLIF(b.budget_amount, 0) * 100)::numeric, 2) as \"Used %\",\n                        ROUND((c.total - b.budget_amount)::numeric, 2) as \"Over/Under\",\n                        CASE \n                            WHEN c.total > b.budget_amount THEN '🔴 Over Budget'\n                            WHEN c.total > b.budget_amount * 0.9 THEN '🟡 Near Limit'\n                            ELSE '🟢 On Track'\n                        END as \"Status\"\n                    FROM budgets b, current_spend c\n                    ORDER BY \"Used %\" DESC;\n                ",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "cost"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "cost_records",
+          "timeColumn": "date",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Budget Details",
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "azure",
+    "cost-analysis",
+    "trends"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "518f04e9-2b37-457e-b852-8f058cb3f160",
+          "value": "518f04e9-2b37-457e-b852-8f058cb3f160"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "PCC52D03280B7034C"
+        },
+        "definition": "SELECT DISTINCT subscription_id FROM cost_records ORDER BY subscription_id",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Subscription",
+        "multi": false,
+        "name": "subscription",
+        "options": [],
+        "query": "SELECT DISTINCT subscription_id FROM cost_records ORDER BY subscription_id",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Azure Cost Trends & Analysis",
+  "uid": "azure-cost-trends",
+  "version": 0
+}

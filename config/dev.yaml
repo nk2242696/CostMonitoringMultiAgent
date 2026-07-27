@@ -1,0 +1,170 @@
+# Azure Configuration
+azure:
+  tenant_id: "your-tenant-id"
+  subscription_ids:
+    - "subscription-id-1"
+    - "subscription-id-2"
+  # Use Managed Identity in production, Service Principal for dev
+  use_managed_identity: false
+  client_id: "your-client-id"  # Only for Service Principal
+  client_secret: "your-client-secret"  # Only for Service Principal, use Key Vault in prod
+  
+# Database Configuration
+database:
+  host: "${DB_HOST:localhost}"  # "postgres" when running in Docker, "localhost" for local dev
+  port: 5432
+  database: "azure_cost_dev"
+  username: "postgres"
+  password: "${POSTGRES_PASSWORD:AzureCost2025!DbPass}"
+  pool_size: 10
+  max_overflow: 20
+  echo_sql: false  # Disable in production
+
+# Redis Configuration
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null
+  decode_responses: true
+  max_connections: 50
+
+# Celery Configuration
+celery:
+  broker_url: "redis://localhost:6379/0"
+  result_backend: "redis://localhost:6379/0"
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content: ["json"]
+  timezone: "UTC"
+  enable_utc: true
+
+# API Configuration
+api:
+  title: "Azure Cost Management System"
+  version: "0.1.0"
+  description: "Comprehensive cost monitoring, alerting, and recommendations"
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8000"
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100
+
+# Monitoring Configuration
+monitoring:
+  collection_intervals:
+    cost_data: "0 * * * *"  # Every hour
+    budget_data: "0 0 * * *"  # Daily at midnight
+    usage_data: "0 */6 * * *"  # Every 6 hours
+  retention:
+    raw_data_days: 90
+    aggregated_data_days: 730  # 2 years
+  anomaly_detection:
+    enabled: true
+    methods:
+      - "zscore"
+      - "iqr"
+    zscore_threshold: 3.0
+    iqr_multiplier: 1.5
+    lookback_days: 30
+
+# Alerting Configuration
+alerting:
+  enabled: true
+  default_thresholds:
+    budget_warning: 0.75
+    budget_critical: 0.90
+    budget_exceeded: 1.0
+    anomaly_deviation_low: 0.25
+    anomaly_deviation_medium: 0.50
+    anomaly_deviation_high: 0.75
+  deduplication_window_minutes: 60
+  escalation_timeout_minutes: 30
+  notification_channels:
+    email:
+      enabled: true
+      smtp_host: "smtp.gmail.com"
+      smtp_port: 587
+      use_tls: true
+      from_address: "noreply@example.com"
+      username: "your-email@gmail.com"
+      password: "your-app-password"  # Use Key Vault
+    slack:
+      enabled: false
+      webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      default_channel: "#azure-costs"
+    teams:
+      enabled: false
+      webhook_url: "https://outlook.office.com/webhook/YOUR/WEBHOOK/URL"
+    sms:
+      enabled: false
+      provider: "twilio"
+      account_sid: "your-twilio-sid"
+      auth_token: "your-twilio-token"
+      from_number: "+1234567890"
+
+# Recommendations Configuration
+recommendations:
+  enabled: true
+  analysis_schedule: "0 0 * * 0"  # Weekly on Sunday at midnight
+  lookback_days: 30
+  minimum_savings_threshold: 10.0  # Minimum $10/month savings to recommend
+  confidence_threshold: 0.70  # 70% confidence minimum
+  analyzers:
+    compute:
+      enabled: true
+      right_sizing:
+        utilization_threshold: 0.40  # Recommend downsize if <40% utilized
+        evaluation_days: 30
+      idle_detection:
+        cpu_threshold: 0.05  # <5% CPU
+        duration_days: 7
+      reserved_instances:
+        utilization_threshold: 0.70  # Recommend RI if >70% utilization
+        payback_months: 12
+    storage:
+      enabled: true
+      orphaned_disk_age_days: 7
+      snapshot_age_days: 90
+      cool_tier_days_since_access: 30
+      archive_tier_days_since_access: 90
+    database:
+      enabled: true
+      idle_detection_days: 7
+      utilization_threshold: 0.40
+      serverless_pattern_detection: true
+    network:
+      enabled: true
+      unused_ip_age_days: 7
+      data_transfer_threshold_gb: 100
+
+# Logging Configuration
+logging:
+  level: "DEBUG"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "json"  # json or text
+  output: "console"  # console, file, or both
+  file_path: "logs/app.log"
+  rotation: "1 day"
+  retention: "30 days"
+  include_request_id: true
+
+# Security Configuration
+security:
+  secret_key: "your-secret-key-change-in-production"  # Use Key Vault
+  key_vault_url: "https://your-keyvault.vault.azure.net/"
+  use_key_vault: false  # Enable in production
+  api_key_header: "X-API-Key"
+  jwt_algorithm: "HS256"
+  access_token_expire_minutes: 60
+
+# Feature Flags
+features:
+  enable_ml_anomaly_detection: true
+  enable_forecasting: true
+  enable_auto_remediation: false  # Disabled by default for safety
+  enable_recommendation_tracking: true
+  enable_savings_reporting: true

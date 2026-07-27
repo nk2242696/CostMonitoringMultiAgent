@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Cost Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+        }
+
+        /* Chat Container - Fills entire viewport */
+        .chat-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        /* Chat Header */
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .chat-header-title h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            opacity: 0.95;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Chat Messages */
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-user {
+            text-align: right;
+        }
+
+        .message-bubble {
+            display: inline-block;
+            padding: 14px 18px;
+            border-radius: 16px;
+            max-width: 85%;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message-user .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: left;
+        }
+
+        .message-agent .message-bubble {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            text-align: left;
+        }
+
+        .message-agent .agent-name {
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .message-timestamp {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 14px 18px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-8px); }
+        }
+
+        /* Suggestions */
+        .suggestions-container {
+            padding: 14px 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+
+        .suggestions-title {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .suggestion-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .suggestion-chip {
+            background: #f0f0f0;
+            border: 1px solid #e0e0e0;
+            padding: 8px 14px;
+            border-radius: 18px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .suggestion-chip:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        /* Chat Input */
+        .chat-input-container {
+            padding: 16px 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 1px solid #e0e0e0;
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .send-button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Scrollbar */
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="chat-header-title">
+                <div>
+                    <h3>💬 AI Cost Assistant</h3>
+                    <div class="agent-status">
+                        <span class="status-dot"></span>
+                        <span>5 Agents Active</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="message message-agent">
+                <div class="message-bubble">
+                    <div class="agent-name">🤖 Orchestrator</div>
+                    <div>👋 Hi! I'm your AI Cost Assistant with 5 specialized agents:</div>
+                    <div style="margin-top: 8px;">
+                        <div>📊 <strong>Data Analyst</strong> - Query costs and trends</div>
+                        <div>💰 <strong>Budget Advisor</strong> - Track spending & forecasts</div>
+                        <div>⚡ <strong>Optimizer</strong> - Cost reduction tips</div>
+                        <div>🔍 <strong>Anomaly Detector</strong> - Spot unusual patterns</div>
+                    </div>
+                    <div style="margin-top: 8px;">Ask me anything about your Azure costs!</div>
+                    <div class="message-timestamp">Just now</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Suggestions -->
+        <div class="suggestions-container" id="suggestionsContainer">
+            <div class="suggestions-title">💡 Quick Questions:</div>
+            <div class="suggestion-chips" id="suggestionChips">
+                <div class="suggestion-chip" data-question="What's my total cloud spend this month?">💵 Monthly costs</div>
+                <div class="suggestion-chip" data-question="Which services had the biggest cost increase?">📈 Top increases</div>
+                <div class="suggestion-chip" data-question="How can I reduce costs by 10%?">💡 Optimize</div>
+                <div class="suggestion-chip" data-question="Are there any unusual spending patterns?">⚠️ Anomalies</div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Ask about costs, budgets, or optimizations..." autocomplete="off">
+                <button class="send-button" id="sendButton">
+                    <span>➤</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = 'http://localhost:8000';
+        let sessionId = null;
+
+        // DOM Elements
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const suggestionChips = document.querySelectorAll('.suggestion-chip');
+
+        // Send message
+        async function sendMessage(message) {
+            if (!message.trim()) return;
+
+            // Clear input
+            chatInput.value = '';
+            sendButton.disabled = true;
+
+            // Add user message
+            addMessage(message, 'user');
+
+            // Show typing indicator
+            const typingId = addTypingIndicator();
+
+            try {
+                // Call API
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to get response');
+                }
+
+                const data = await response.json();
+                sessionId = data.session_id;
+
+                // Remove typing indicator
+                removeTypingIndicator(typingId);
+
+                // Add agent response
+                addMessage(data.response, 'agent', data.agents_involved);
+
+            } catch (error) {
+                console.error('Chat error:', error);
+                removeTypingIndicator(typingId);
+                addMessage(`❌ ${error.message}`, 'agent');
+            } finally {
+                sendButton.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        // Add message to chat
+        function addMessage(text, sender, agents = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${sender}`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+
+            if (sender === 'agent' && agents && agents.length > 0) {
+                const agentName = document.createElement('div');
+                agentName.className = 'agent-name';
+                agentName.textContent = `🤖 ${agents.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}`;
+                bubble.appendChild(agentName);
+            }
+
+            const content = document.createElement('div');
+            content.innerHTML = formatMessage(text);
+            bubble.appendChild(content);
+
+            const timestamp = document.createElement('div');
+            timestamp.className = 'message-timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            bubble.appendChild(timestamp);
+
+            messageDiv.appendChild(bubble);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Format message with markdown-like syntax
+        function formatMessage(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>')
+                .replace(/•/g, '•');
+        }
+
+        // Typing indicator
+        let typingCounter = 0;
+        function addTypingIndicator() {
+            const id = `typing-${typingCounter++}`;
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-agent';
+            messageDiv.id = id;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble typing-indicator';
+            bubble.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+
+            messageDiv.appendChild(bubble);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            return id;
+        }
+
+        function removeTypingIndicator(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.remove();
+            }
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', () => {
+            sendMessage(chatInput.value);
+        });
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage(chatInput.value);
+            }
+        });
+
+        suggestionChips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                const question = chip.getAttribute('data-question');
+                chatInput.value = question;
+                sendMessage(question);
+            });
+        });
+
+        // Auto-focus
+        chatInput.focus();
+
+        // Load suggestions from API
+        async function loadSuggestions() {
+            try {
+                const response = await fetch(`${API_URL}/chat/suggestions`);
+                const suggestions = await response.json();
+                
+                // Update suggestion chips with first category
+                if (suggestions.length > 0) {
+                    const firstCategory = suggestions[0];
+                    const chipsContainer = document.getElementById('suggestionChips');
+                    chipsContainer.innerHTML = '';
+                    
+                    firstCategory.questions.slice(0, 4).forEach(q => {
+                        const chip = document.createElement('div');
+                        chip.className = 'suggestion-chip';
+                        chip.setAttribute('data-question', q);
+                        chip.textContent = q.substring(0, 25) + (q.length > 25 ? '...' : '');
+                        chip.addEventListener('click', () => {
+                            chatInput.value = q;
+                            sendMessage(q);
+                        });
+                        chipsContainer.appendChild(chip);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load suggestions:', error);
+            }
+        }
+
+        // Initialize
+        loadSuggestions();
+    </script>
+</body>
+</html>

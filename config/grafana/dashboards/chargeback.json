@@ -1,0 +1,179 @@
+{
+  "annotations": { "list": [] },
+  "description": "Cost allocation by team, department, and cost center with tag compliance tracking",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "style": "light",
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "<div style=\"display:flex;align-items:center;gap:16px;padding:8px 16px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:8px;margin:-4px 0\">\n  <div style=\"font-size:26px;font-weight:700;color:#ffffff\">Chargeback & Cost Allocation</div>\n  <div style=\"font-size:13px;color:#a8b2d1;border-left:2px solid #a8b2d1;padding-left:16px\">Cost allocation by <strong style=\"color:#64ffda\">${tag_key}</strong> · Tag compliance · Showback distribution</div>\n</div>",
+        "mode": "html"
+      },
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "#1d3557", "mode": "fixed" }, "unit": "currencyUSD" } },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 2 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(SUM(cost)::numeric, 2) as \"Total Cost\" FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}'));" }],
+      "title": "", "transparent": true, "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "#2d6a4f", "mode": "fixed" }, "unit": "percent" } },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 2 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(COUNT(CASE WHEN tags::text != '{}' AND tags::text != 'null' AND tags IS NOT NULL THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as \"Tag Coverage\" FROM (SELECT DISTINCT resource_id, tags FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}'))) sub;" }],
+      "title": "", "transparent": true, "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "#e76f51", "mode": "fixed" }, "unit": "currencyUSD" } },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 2 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(SUM(cost)::numeric, 2) as \"Unallocated Cost\" FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND (tags::text = '{}' OR tags IS NULL OR tags::text = 'null') AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}'));" }],
+      "title": "", "transparent": true, "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "#6a4c93", "mode": "fixed" } } },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 2 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(DISTINCT COALESCE(tags::json->>'${tag_key:raw}', 'UNTAGGED')) as \"Cost Centers\" FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}'));" }],
+      "title": "", "transparent": true, "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 50,
+      "title": "COST ALLOCATION BY ${tag_key}",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "continuous-BlYlRd" }, "custom": { "fillOpacity": 85, "gradientMode": "hue", "lineWidth": 0, "thresholdsStyle": { "mode": "off" } }, "unit": "currencyUSD" }
+      },
+      "gridPos": { "h": 11, "w": 15, "x": 0, "y": 7 },
+      "id": 5,
+      "options": { "barRadius": 0.1, "barWidth": 0.65, "fullHighlight": true, "legend": { "displayMode": "hidden", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single" } },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(tags::json->>'${tag_key:raw}', 'UNTAGGED') as \"Group\", ROUND(SUM(cost)::numeric, 0) as \"Cost\" FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}')) GROUP BY \"Group\" ORDER BY \"Cost\" DESC LIMIT 15;" }],
+      "title": "Cost by ${tag_key}",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic-by-name" }, "unit": "currencyUSD" } },
+      "gridPos": { "h": 11, "w": 9, "x": 15, "y": 7 },
+      "id": 6,
+      "options": { "displayLabels": ["name", "percent"], "legend": { "displayMode": "hidden", "showLegend": false }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(tags::json->>'${tag_key:raw}', 'UNTAGGED') as metric, ROUND(SUM(cost)::numeric, 0) as value FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}')) GROUP BY metric ORDER BY value DESC LIMIT 10;" }],
+      "title": "Distribution",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 51,
+      "title": "CHARGEBACK DETAIL",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": true, "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Group" }, "properties": [{ "id": "custom.width", "value": 200 }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }, { "id": "color", "value": { "fixedColor": "#1d3557", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Direct Cost" }, "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "custom.width", "value": 130 }, { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient", "valueDisplayMode": "text" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "#b7e4c7", "value": null }, { "color": "#52b788", "value": 1000 }, { "color": "#2d6a4f", "value": 10000 }] } }, { "id": "max", "value": 50000 }] },
+          { "matcher": { "id": "byName", "options": "% of Total" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.width", "value": 100 }] },
+          { "matcher": { "id": "byName", "options": "Resources" }, "properties": [{ "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "Services" }, "properties": [{ "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Top Service" }, "properties": [{ "id": "custom.width", "value": 200 }] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 19 },
+      "id": 7,
+      "options": { "cellHeight": "md", "footer": { "countRows": false, "fields": "Direct Cost", "reducer": ["sum"], "show": true }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Direct Cost" }] },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "WITH grouped AS (SELECT COALESCE(tags::json->>'${tag_key:raw}', 'UNTAGGED') as grp, ROUND(SUM(cost)::numeric, 2) as cost, COUNT(DISTINCT resource_id) as resources, COUNT(DISTINCT service_name) as services FROM cost_records WHERE date >= NOW() - INTERVAL '30 days' AND ('${subscription:raw}' = '$__all' OR subscription_id IN ('${subscription:raw}')) GROUP BY grp), total AS (SELECT SUM(cost) as t FROM grouped) SELECT g.grp as \"Group\", g.cost as \"Direct Cost\", ROUND(g.cost / NULLIF(t.t, 0) * 100, 1) as \"% of Total\", g.resources as \"Resources\", g.services as \"Services\" FROM grouped g, total t ORDER BY g.cost DESC;" }],
+      "title": "Cost Allocation Table — by ${tag_key}",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 52,
+      "title": "PRICING MODEL",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "id": 60,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "## Internal Pricing Structure\n\n| Model | Description | Use Case |\n|-------|-------------|----------|\n| **Direct Allocation** | Costs charged directly to the team/cost-center that owns the tagged resource | Standard chargeback for prod workloads |\n| **Proportional Shared** | Untagged/shared infrastructure costs distributed proportionally based on each team's tagged spend | Network, monitoring, shared services |\n| **Fixed Fee + Variable** | Base platform fee per team + actual consumption | Enterprise internal IT-as-a-Service |\n| **Tiered Pricing** | Volume discounts for large consumers (e.g., >$10K/mo = 10% discount) | Incentivise consolidation |\n\n### Current Configuration\n- **Direct costs**: Allocated by `${tag_key}` tag value\n- **Untagged costs**: Distributed proportionally among tagged groups (showback)\n- **Internal markup**: 0% (configurable via API)\n\n### API Endpoints\n- `GET /api/v1/costs/chargeback?tag_key=${tag_key}&days=30` — Full chargeback report\n- `GET /api/v1/costs/tag-compliance?required_tags=CostCenter,Environment,Owner` — Tag compliance audit\n\n### Improving Tag Coverage\n1. Apply Azure Policy to enforce required tags on resource creation\n2. Use `az resource tag` to retroactively tag existing resources\n3. Set up tag inheritance from resource group to child resources",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["chargeback", "showback", "finops"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "CostCenter", "value": "CostCenter" },
+        "description": "Tag key to group costs by",
+        "label": "Group By Tag",
+        "name": "tag_key",
+        "options": [
+          { "selected": true, "text": "CostCenter", "value": "CostCenter" },
+          { "selected": false, "text": "Environment", "value": "Environment" },
+          { "selected": false, "text": "Owner", "value": "Owner" },
+          { "selected": false, "text": "Team", "value": "Team" },
+          { "selected": false, "text": "Department", "value": "Department" },
+          { "selected": false, "text": "Project", "value": "Project" },
+          { "selected": false, "text": "Application", "value": "Application" }
+        ],
+        "query": "CostCenter,Environment,Owner,Team,Department,Project,Application",
+        "type": "custom"
+      },
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+        "definition": "SELECT DISTINCT subscription_id FROM cost_records WHERE subscription_id IS NOT NULL ORDER BY subscription_id",
+        "includeAll": true,
+        "label": "Subscription",
+        "multi": true,
+        "name": "subscription",
+        "options": [],
+        "query": "SELECT DISTINCT subscription_id FROM cost_records WHERE subscription_id IS NOT NULL ORDER BY subscription_id",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Chargeback & Cost Allocation",
+  "uid": "chargeback",
+  "version": 0,
+  "weekStart": ""
+}

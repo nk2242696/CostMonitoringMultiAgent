@@ -4,11 +4,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to republish and attest (for example, v0.2.0)
+        required: false
+        type: string
 
 permissions:
   contents: write
   pull-requests: write
   packages: write
+  attestations: write
   id-token: write
 
 concurrency:
@@ -39,7 +45,7 @@ jobs:
   publish-image:
     name: Publish container image
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true' || inputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -47,7 +53,7 @@ jobs:
       - name: Check out released source
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -68,9 +74,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
-            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{version}},value=${{ inputs.tag || needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}},value=${{ inputs.tag || needs.release-please.outputs.tag_name }}
             type=raw,value=latest
 
       - name: Build and publish image

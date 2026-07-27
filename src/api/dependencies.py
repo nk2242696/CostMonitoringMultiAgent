@@ -131,3 +131,17 @@ def get_request_id(request: Request) -> str:
 def get_api_key_owner(request: Request) -> str:
     """Extract API key owner set by ApiKeyMiddleware."""
     return getattr(request.state, "api_key_owner", "anonymous")
+
+
+def get_agent_runtime(request: Request, db: Session = Depends(get_db)):
+    """Create a request-scoped runtime with the process-owned checkpointer."""
+    from src.agents.runtime import AgentRuntime
+    from src.common.config import get_config
+
+    config = get_config()
+    return AgentRuntime(
+        db,
+        config.agents,
+        config.workspace,
+        checkpointer=getattr(request.app.state, "agent_checkpointer", None),
+    )

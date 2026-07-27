@@ -12,10 +12,10 @@ from sqlalchemy import func, text
 
 from src.api.exceptions import register_exception_handlers
 from src.api.middleware import register_middleware
-from src.api.routers import alerts, chat, costs, forecasts, recommendations, spark
+from src.api.routers import agents, alerts, chat, costs, forecasts, recommendations, spark
 from src.common.config import get_config
 from src.common.database import close_db, get_database
-from src.models import AIRecommendation, CostAlert, CostRecord
+from src.models import AIRecommendation, AgentRun, CostAlert, CostRecord
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Manage process resources; Alembic owns schema migrations."""
     logger.info("Azure Cost Monitoring API starting")
-    get_config()  # Fail fast on invalid application configuration.
+    runtime_config = get_config()  # Fail fast on invalid application configuration.
+    checkpoint_manager = None
+    if runtime_config.agents.agent_runtime_enabled:
+        from src.agents.checkpoints import AgentCheckpointManager
+
+        checkpoint_manager = AgentCheckpointManager(runtime_config.database.url)
+        app.state.agent_checkpointer = await checkpoint_manager.start()
+    else:
+        app.state.agent_checkpointer = None
     yield
+    if checkpoint_manager is not None:
+        await checkpoint_manager.close()
     close_db()
     logger.info("Azure Cost Monitoring API stopped")
 
@@ -53,6 +63,7 @@ app.include_router(forecasts.router)
 app.include_router(recommendations.router)
 app.include_router(spark.router)
 app.include_router(chat.router)
+app.include_router(agents.router)
 
 
 @app.get("/health", tags=["Health"])
@@ -62,6 +73,7 @@ def health():
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "2.0.0",
+        "agent_runtime": "enabled" if config.agents.agent_runtime_enabled else "disabled",
     }
     try:
         with get_database().get_session() as session:
@@ -109,6 +121,15 @@ def prometheus_metrics():
     )
     potential_savings = Gauge(
         "azure_potential_savings", "Potential savings", registry=registry
+    )
+    agent_runs = Gauge(
+        "finops_agent_runs", "Durable agent runs", ["workflow", "status"], registry=registry
+    )
+    agent_model_calls = Gauge(
+        "finops_agent_model_calls", "Persisted agent model calls", registry=registry
+    )
+    agent_tool_calls = Gauge(
+        "finops_agent_tool_calls", "Persisted agent tool calls", registry=registry
     )
 
     try:
@@ -164,6 +185,18 @@ def prometheus_metrics():
                     or 0
                 )
             )
+            run_rows = session.query(
+                AgentRun.workflow_kind,
+                AgentRun.status,
+                func.count(AgentRun.id).label("count"),
+            ).group_by(AgentRun.workflow_kind, AgentRun.status).all()
+            for row in run_rows:
+                agent_runs.labels(
+                    workflow=row.workflow_kind, status=row.status
+                ).set(row.count)
+            usage_rows = session.query(AgentRun.usage).all()
+            agent_model_calls.set(sum(int((row.usage or {}).get("model_calls", 0)) for row in usage_rows))
+            agent_tool_calls.set(sum(int((row.usage or {}).get("tool_calls", 0)) for row in usage_rows))
     except Exception:
         logger.exception("Prometheus metric collection failed")
 

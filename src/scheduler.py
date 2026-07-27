@@ -9,7 +9,9 @@ Runs periodic tasks using APScheduler:
 """
 
 import logging
-from datetime import datetime
+import asyncio
+import uuid
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -70,6 +72,13 @@ def _run_collection():
 
 def _run_recommendations():
     """Generate Tier-1 recommendations."""
+    from src.common.config import get_config
+
+    config = get_config()
+    if config.agents.agent_runtime_enabled:
+        asyncio.run(_run_agent_review())
+        return
+
     from src.common.database import get_database
     from src.recommendations.architecture_reviewer import ArchitectureRecommender
     from src.models import CostRecord
@@ -102,8 +111,53 @@ def _run_recommendations():
         logger.info("Generated %d recommendations", len(recs))
 
 
+async def _run_agent_review():
+    """Run one idempotent, read-only agent review for the current ISO week."""
+    from src.agents.checkpoints import AgentCheckpointManager
+    from src.agents.runtime import AgentRuntime
+    from src.common.config import get_config
+    from src.common.database import get_database
+    from src.models import AgentRun
+
+    config = get_config()
+    database = get_database()
+    year, week, _ = datetime.now(timezone.utc).isocalendar()
+    thread_id = f"scheduled-finops-review-{year}-W{week:02d}"
+
+    with database.get_session() as session:
+        existing = session.query(AgentRun).filter(
+            AgentRun.thread_id == thread_id,
+            AgentRun.workflow_kind == "background_review",
+            AgentRun.status.in_(["running", "completed"]),
+        ).first()
+        if existing is not None:
+            logger.info("Skipping duplicate scheduled agent review %s", thread_id)
+            return
+
+        checkpoint_manager = AgentCheckpointManager(config.database.url)
+        checkpointer = await checkpoint_manager.start()
+        try:
+            runtime = AgentRuntime(
+                session, config.agents, config.workspace, checkpointer=checkpointer
+            )
+            result = await runtime.run_background_review(
+                "Review the last 30 days of Azure costs and cached architecture. "
+                "Create evidence-backed proposals requiring human approval; execute nothing.",
+                thread_id=thread_id,
+                request_id=str(uuid.uuid4()),
+            )
+            logger.info(
+                "Scheduled agent review completed: run=%s evidence=%d",
+                result.get("run_id"), len(result.get("evidence", [])),
+            )
+        finally:
+            await checkpoint_manager.close()
+
+
 def start_scheduler():
     """Start the background scheduler with all periodic jobs."""
+    from src.common.config import get_config
+
     global _scheduler
     if _scheduler and _scheduler.running:
         return
@@ -143,7 +197,7 @@ def start_scheduler():
     # Recommendation generation: weekly Sunday at 03:00 UTC
     _scheduler.add_job(
         _run_recommendations,
-        CronTrigger.from_crontab("0 3 * * 0"),
+        CronTrigger.from_crontab(get_config().agents.agent_background_schedule),
         id="recommendations",
         name="Generate Tier-1 recommendations",
         replace_existing=True,

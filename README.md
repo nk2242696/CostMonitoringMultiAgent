@@ -1,5 +1,7 @@
 # Azure Cost Monitoring Multi-Agent Platform
 
+The optional LangGraph runtime coordinates six FinOps personas, model-driven read-only tools, governance review, PostgreSQL checkpoints, durable evidence/audit records, chat, CLI reviews, and scheduled reviews. It is disabled by default for staged rollout and never executes Azure changes.
+
 A Docker-first FinOps platform for collecting Azure costs, visualizing spend, detecting budget risks, forecasting future cost, and generating reviewable optimization recommendations with an optional language model.
 
 > The platform is advisory by default. It does not automatically modify Azure resources.

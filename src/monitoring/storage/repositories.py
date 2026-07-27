@@ -26,6 +26,10 @@ from src.models import (
     AIRecommendation,
     ArchitectureReview,
     SparkJobAnalysis,
+    AgentArtifact,
+    AgentEvent,
+    AgentMessageRecord,
+    AgentRun,
 )
 
 logger = logging.getLogger(__name__)
@@ -157,13 +161,12 @@ class CostRecordRepository(BaseRepository[CostRecord]):
             .filter(CostRecord.date >= start_date, CostRecord.date <= end_date)
             .group_by(CostRecord.service_name)
             .order_by(desc(sqla_func.sum(CostRecord.cost)))
-            .limit(top_n)
         )
         if subscription_id:
             query = query.filter(CostRecord.subscription_id == subscription_id)
         return [
             {"service_name": r.service_name, "total_cost": float(r.total_cost), "resource_count": r.resource_count}
-            for r in query.all()
+            for r in query.limit(top_n).all()
         ]
 
     def get_total_cost(
@@ -624,3 +627,53 @@ class SparkJobAnalysisRepository(BaseRepository[SparkJobAnalysis]):
             .limit(limit)
             .all()
         )
+
+
+# =========================================================================
+# Agent run and audit repositories
+# =========================================================================
+
+class AgentRunRepository(BaseRepository[AgentRun]):
+    model = AgentRun
+
+    def get_for_actor(self, run_id: str, actor_id: str) -> Optional[AgentRun]:
+        return self.db.query(AgentRun).filter(
+            AgentRun.run_id == run_id,
+            AgentRun.actor_id == actor_id,
+        ).first()
+
+    def list_for_actor(self, actor_id: str, limit: int = 50) -> List[AgentRun]:
+        return self.db.query(AgentRun).filter(
+            AgentRun.actor_id == actor_id,
+        ).order_by(AgentRun.created_at.desc()).limit(min(limit, 100)).all()
+
+
+class AgentEventRepository(BaseRepository[AgentEvent]):
+    model = AgentEvent
+
+    def list_for_run(self, agent_run_id: int, limit: int = 200) -> List[AgentEvent]:
+        return self.db.query(AgentEvent).filter(
+            AgentEvent.agent_run_id == agent_run_id,
+        ).order_by(AgentEvent.created_at).limit(min(limit, 500)).all()
+
+
+class AgentMessageRepository(BaseRepository[AgentMessageRecord]):
+    model = AgentMessageRecord
+
+    def get_thread_history(
+        self, thread_id: str, actor_id: str, limit: int = 20
+    ) -> List[AgentMessageRecord]:
+        rows = self.db.query(AgentMessageRecord).filter(
+            AgentMessageRecord.thread_id == thread_id,
+            AgentMessageRecord.actor_id == actor_id,
+        ).order_by(AgentMessageRecord.created_at.desc()).limit(min(limit, 50)).all()
+        return list(reversed(rows))
+
+
+class AgentArtifactRepository(BaseRepository[AgentArtifact]):
+    model = AgentArtifact
+
+    def list_for_run(self, agent_run_id: int, limit: int = 200) -> List[AgentArtifact]:
+        return self.db.query(AgentArtifact).filter(
+            AgentArtifact.agent_run_id == agent_run_id,
+        ).order_by(AgentArtifact.created_at).limit(min(limit, 500)).all()

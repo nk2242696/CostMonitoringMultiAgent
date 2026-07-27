@@ -1,6 +1,6 @@
 {
   "annotations": { "list": [] },
-  "description": "Metrics-based resource optimization — utilization scores calculated from real Azure Monitor data",
+  "description": "Azure cost optimization with governed LangGraph proposals and metrics-based resource diagnostics",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -14,7 +14,7 @@
       "id": 100,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "<div style=\"display:flex;align-items:center;gap:16px;padding:8px 16px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:8px;margin:-4px 0\">\n  <div style=\"font-size:26px;font-weight:700;color:#ffffff\">🔍 Resource Optimization</div>\n  <div style=\"font-size:13px;color:#a8b2d1;border-left:2px solid #a8b2d1;padding-left:16px\">Metrics-based scoring from <strong style=\"color:#64ffda\">Azure Monitor</strong> · Click <strong style=\"color:#f0a500\">▶ Diagnose</strong> on any resource to calculate real utilization</div>\n</div>",
+        "content": "<div style=\"display:flex;align-items:center;gap:16px;padding:8px 16px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:8px;margin:-4px 0\">\n  <div style=\"font-size:26px;font-weight:700;color:#ffffff\">🤖 AI Cost Optimization</div>\n  <div style=\"font-size:13px;color:#a8b2d1;border-left:2px solid #a8b2d1;padding-left:16px\">Governed <strong style=\"color:#64ffda\">LangGraph multi-agent proposals</strong> · Read-only evidence · Human approval required · Azure Monitor resource diagnostics</div>\n</div>",
         "mode": "html"
       },
       "transparent": true,
@@ -83,6 +83,63 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 54,
+      "title": "AUTONOMOUS MULTI-AGENT LLM PROPOSALS — latest completed review for the selected subscription",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "#7b2cbf", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "#7b2cbf", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 0, "y": 8 },
+      "id": 11,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "WITH latest_run AS (SELECT id FROM agent_runs WHERE workflow_kind = 'background_review' AND status = 'completed' AND ('${subscription:raw}' IN ('all', '__all__') OR scope->>'subscription_id' IN (${subscription:sqlstring}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(scope::jsonb->'subscription_ids') = 'array' THEN scope::jsonb->'subscription_ids' ELSE '[]'::jsonb END) selected(value) WHERE selected.value IN (${subscription:sqlstring}))) ORDER BY completed_at DESC LIMIT 1) SELECT COUNT(*) AS \"LLM Proposals\" FROM agent_artifacts aa JOIN latest_run lr ON lr.id = aa.agent_run_id WHERE aa.artifact_type = 'proposal';" }],
+      "title": "",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "#e9c46a", "mode": "fixed" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "#e9c46a", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 0, "y": 14 },
+      "id": 12,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "WITH latest_run AS (SELECT id FROM agent_runs WHERE workflow_kind = 'background_review' AND status = 'completed' AND ('${subscription:raw}' IN ('all', '__all__') OR scope->>'subscription_id' IN (${subscription:sqlstring}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(scope::jsonb->'subscription_ids') = 'array' THEN scope::jsonb->'subscription_ids' ELSE '[]'::jsonb END) selected(value) WHERE selected.value IN (${subscription:sqlstring}))) ORDER BY completed_at DESC LIMIT 1) SELECT COUNT(*) AS \"Awaiting Approval\" FROM agent_artifacts aa JOIN latest_run lr ON lr.id = aa.agent_run_id WHERE aa.artifact_type = 'proposal' AND aa.requires_human_approval;" }],
+      "title": "",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true, "inspect": true, "minWidth": 80 }, "mappings": [] },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Proposal" }, "properties": [{ "id": "custom.width", "value": 260 }] },
+          { "matcher": { "id": "byName", "options": "Recommendation" }, "properties": [{ "id": "custom.width", "value": 520 }, { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } }] },
+          { "matcher": { "id": "byName", "options": "Approval" }, "properties": [{ "id": "custom.width", "value": 150 }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "color", "value": { "fixedColor": "#e9c46a", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Potential Savings" }, "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "custom.width", "value": 130 }] },
+          { "matcher": { "id": "byName", "options": "Run ID" }, "properties": [{ "id": "custom.width", "value": 260 }] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 19, "x": 5, "y": 8 },
+      "id": 13,
+      "options": { "cellHeight": "md", "footer": { "countRows": true, "fields": [], "reducer": ["count"], "show": true }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Generated" }] },
+      "pluginVersion": "11.4.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" }, "format": "table", "rawQuery": true, "rawSql": "WITH latest_run AS (SELECT id, run_id, model, scope, completed_at FROM agent_runs WHERE workflow_kind = 'background_review' AND status = 'completed' AND ('${subscription:raw}' IN ('all', '__all__') OR scope->>'subscription_id' IN (${subscription:sqlstring}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(scope::jsonb->'subscription_ids') = 'array' THEN scope::jsonb->'subscription_ids' ELSE '[]'::jsonb END) selected(value) WHERE selected.value IN (${subscription:sqlstring}))) ORDER BY completed_at DESC LIMIT 1) SELECT aa.payload->>'title' AS \"Proposal\", aa.payload->>'recommendation' AS \"Recommendation\", ROUND(NULLIF(aa.payload->>'potential_monthly_savings', '')::numeric, 0) AS \"Potential Savings\", ROUND((aa.payload->>'confidence')::numeric * 100, 0) AS \"Confidence %\", jsonb_array_length(aa.citations::jsonb) AS \"Evidence\", CASE WHEN aa.requires_human_approval THEN 'Human approval required' ELSE 'Reviewed' END AS \"Approval\", lr.model AS \"Model\", lr.run_id AS \"Run ID\", COALESCE(lr.scope->>'subscription_id', 'Multiple subscriptions') AS \"Scope\", aa.created_at AS \"Generated\" FROM agent_artifacts aa JOIN latest_run lr ON lr.id = aa.agent_run_id WHERE aa.artifact_type = 'proposal' ORDER BY aa.created_at DESC;" }],
+      "title": "Governed proposals produced by the LangGraph specialist, optimization, and risk-review agents",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
       "id": 50,
       "title": "SPEND DISTRIBUTION",
       "type": "row"
@@ -96,7 +153,7 @@
           "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "currencyUSD"
         }
       },
-      "gridPos": { "h": 11, "w": 15, "x": 0, "y": 8 },
+      "gridPos": { "h": 11, "w": 15, "x": 0, "y": 21 },
       "id": 5,
       "options": { "barRadius": 0.1, "barWidth": 0.65, "fullHighlight": true, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "hidden", "placement": "right", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0 },
       "pluginVersion": "11.4.0",
@@ -117,7 +174,7 @@
           { "matcher": { "id": "byName", "options": "Azure Cosmos DB" }, "properties": [{ "id": "color", "value": { "fixedColor": "#6a4c93", "mode": "fixed" } }] }
         ]
       },
-      "gridPos": { "h": 11, "w": 9, "x": 15, "y": 8 },
+      "gridPos": { "h": 11, "w": 9, "x": 15, "y": 21 },
       "id": 10,
       "options": { "displayLabels": ["name", "percent"], "legend": { "displayMode": "hidden", "placement": "right", "showLegend": false, "values": [] }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "pluginVersion": "11.4.0",
@@ -127,7 +184,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
       "id": 51,
       "title": "RESOURCES TO REVIEW — click ▶ Diagnose to calculate utilization from real Azure Monitor metrics",
       "type": "row"
@@ -206,7 +263,7 @@
           }
         ]
       },
-      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 20 },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 33 },
       "id": 6,
       "options": {
         "cellHeight": "md",
@@ -221,7 +278,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
       "id": 52,
       "title": "CATEGORY BREAKDOWN",
       "type": "row"
@@ -235,7 +292,7 @@
           "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 37 },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 50 },
       "id": 8,
       "options": { "barRadius": 0.1, "barWidth": 0.7, "fullHighlight": false, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "hidden", "placement": "right", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0 },
       "pluginVersion": "11.4.0",
@@ -252,7 +309,7 @@
           "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 37 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 50 },
       "id": 9,
       "options": { "barRadius": 0.1, "barWidth": 0.7, "fullHighlight": false, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "hidden", "placement": "right", "showLegend": false }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0 },
       "pluginVersion": "11.4.0",
@@ -262,17 +319,17 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
       "id": 53,
       "title": "HOW IT WORKS",
       "type": "row"
     },
     {
-      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 48 },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 61 },
       "id": 101,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "<div style=\"padding:16px 24px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;line-height:1.8;color:#495057\">\n  <strong style=\"font-size:15px;color:#1d3557\">📐 How Utilization Scores Are Calculated</strong><br><br>\n  <strong>Step 1:</strong> Click <strong>▶ Diagnose</strong> on any resource → queries <strong>Azure Monitor</strong> for 7 days of real metrics (CPU%, DWU%, Memory%, connections, active queries)<br>\n  <strong>Step 2:</strong> <strong>Utilization Score</strong> = weighted average of metric values (60% avg + 40% peak, accounting for burst capacity needs)<br>\n  <strong>Step 3:</strong> <strong>Savings Potential</strong> = gap between current utilization and capacity, with safety margin for headroom<br>\n  <strong>Step 4:</strong> <strong>Improvement Areas</strong> auto-detected: Auto-Pause not enabled, overprovisioned SKU, missing cost tags, unused resources<br><br>\n  <em style=\"color:#6c757d\">No hardcoded dollar amounts. No guessed percentages. Every number comes from real Azure Monitor data.</em>\n</div>",
+        "content": "<div style=\"padding:16px 24px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;line-height:1.8;color:#495057\">\n  <strong style=\"font-size:15px;color:#1d3557\">🤖 How Multi-Agent Recommendations Are Produced</strong><br><br>\n  <strong>Step 1:</strong> The FinOps orchestrator selects specialist personas for the requested subscription scope.<br>\n  <strong>Step 2:</strong> Cost and architecture specialists call read-only tools and capture evidence IDs from canonical cost and inventory data.<br>\n  <strong>Step 3:</strong> The optimization specialist creates bounded proposals; the risk and governance reviewer checks evidence, risks, and policy constraints.<br>\n  <strong>Step 4:</strong> Only the latest completed background review is shown above, with its model, run ID, confidence, evidence count, and approval status.<br>\n  <strong>Resource diagnostics:</strong> Click <strong>▶ Diagnose</strong> in the legacy resource table to query Azure Monitor metrics.<br><br>\n  <em style=\"color:#6c757d\">Agent proposals are advisory and read-only. Every proposal requires explicit human approval before any implementation.</em>\n</div>",
         "mode": "html"
       },
       "transparent": true,

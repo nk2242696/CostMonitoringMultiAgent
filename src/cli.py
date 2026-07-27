@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import asyncio
 import logging
 import signal
 import sys
@@ -194,6 +195,52 @@ def cmd_scheduler(args):
         stop_scheduler()
 
 
+def cmd_agents_review(args):
+    """Run a manual read-only agent review through the shared runtime."""
+    from src.agents.checkpoints import AgentCheckpointManager
+    from src.agents.runtime import AgentRuntime
+    from src.common.config import get_config
+    from src.common.database import get_database
+
+    async def execute():
+        config = get_config()
+        manager = AgentCheckpointManager(config.database.url)
+        checkpointer = await manager.start()
+        try:
+            with get_database().get_session() as session:
+                runtime = AgentRuntime(
+                    session, config.agents, config.workspace, checkpointer=checkpointer
+                )
+                scope = {"subscription_id": args.subscription} if args.subscription else {}
+                return await runtime.run_background_review(
+                    args.message,
+                    thread_id=args.thread_id or f"manual-review-{__import__('uuid').uuid4()}",
+                    request_id=str(__import__('uuid').uuid4()),
+                    actor_id="cli",
+                    scope=scope,
+                )
+        finally:
+            await manager.close()
+
+    result = asyncio.run(execute())
+    print(f"Agent run {result['run_id']} completed: {result['final_response']['answer']}")
+
+
+def cmd_agents_status(args):
+    """Show status for a CLI-owned durable agent run."""
+    from src.common.database import get_database
+    from src.monitoring.storage.repositories import AgentRunRepository
+
+    with get_database().get_session() as session:
+        run = AgentRunRepository(session).get_for_actor(args.run_id, "cli")
+        if run is None:
+            raise SystemExit("Agent run not found")
+        print(
+            f"run_id={run.run_id} status={run.status} workflow={run.workflow_kind} "
+            f"model={run.model or 'unknown'}"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="cost-agent",
@@ -259,6 +306,21 @@ def main():
     # scheduler
     p = sub.add_parser("scheduler", help="Start the background worker")
     p.set_defaults(func=cmd_scheduler)
+
+    # agents
+    p = sub.add_parser("agents", help="Durable multi-agent operations")
+    agents_sub = p.add_subparsers(dest="agents_command")
+    pr = agents_sub.add_parser("review", help="Run a read-only FinOps agent review")
+    pr.add_argument("--subscription", help="Optional subscription scope")
+    pr.add_argument("--thread-id", help="Existing or new durable thread ID")
+    pr.add_argument(
+        "--message",
+        default="Review the last 30 days of Azure cost and architecture evidence. Propose safe optimizations requiring human approval.",
+    )
+    pr.set_defaults(func=cmd_agents_review)
+    ps = agents_sub.add_parser("status", help="Get status for a CLI agent run")
+    ps.add_argument("run_id")
+    ps.set_defaults(func=cmd_agents_status)
 
     args = parser.parse_args()
     if not hasattr(args, "func"):

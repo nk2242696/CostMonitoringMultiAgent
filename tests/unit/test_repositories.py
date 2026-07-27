@@ -19,7 +19,12 @@ from src.monitoring.storage.repositories import (
     CostForecastRepository,
     CostRecordRepository,
     AIRecommendationRepository,
+    AgentArtifactRepository,
+    AgentEventRepository,
+    AgentMessageRepository,
+    AgentRunRepository,
 )
+from src.models import AgentArtifact, AgentEvent, AgentMessageRecord, AgentRun
 
 
 class TestCostRecordRepository:
@@ -215,3 +220,44 @@ class TestAIRecommendationRepository:
         repo.update_status(rec.recommendation_id, "approved", approved_by="manager")
         assert rec.status == "approved"
         assert rec.approved_at is not None
+
+
+class TestAgentRepositories:
+    def test_run_lookup_is_actor_scoped(self, db_session):
+        repo = AgentRunRepository(db_session)
+        run = repo.create(AgentRun(
+            run_id="run-1", thread_id="thread-1", workflow_kind="chat",
+            actor_id="actor-a", status="completed",
+        ))
+        db_session.flush()
+
+        assert repo.get_for_actor("run-1", "actor-a") is run
+        assert repo.get_for_actor("run-1", "actor-b") is None
+
+    def test_events_messages_and_artifacts_are_bounded(self, db_session):
+        run = AgentRunRepository(db_session).create(AgentRun(
+            run_id="run-2", thread_id="thread-2", workflow_kind="chat",
+            actor_id="actor-a", status="completed",
+        ))
+        db_session.flush()
+        AgentEventRepository(db_session).create(AgentEvent(
+            event_id="event-1", agent_run_id=run.id, event_type="tool",
+            node_name="cost_analyst", status="completed", details={"tool": "cost_summary"},
+        ))
+        AgentMessageRepository(db_session).create(AgentMessageRecord(
+            message_id="message-1", agent_run_id=run.id, thread_id="thread-2",
+            actor_id="actor-a", role="user", content="Review costs",
+        ))
+        AgentArtifactRepository(db_session).create(AgentArtifact(
+            artifact_id="artifact-1", agent_run_id=run.id, artifact_type="proposal",
+            payload={"title": "Review sizing"}, requires_human_approval=True,
+        ))
+        db_session.flush()
+
+        assert len(AgentEventRepository(db_session).list_for_run(run.id)) == 1
+        assert len(AgentMessageRepository(db_session).get_thread_history(
+            "thread-2", "actor-a"
+        )) == 1
+        artifacts = AgentArtifactRepository(db_session).list_for_run(run.id)
+        assert len(artifacts) == 1
+        assert artifacts[0].requires_human_approval is True
